@@ -141,7 +141,3 @@ Para desplegarlo, conecta el repositorio a Render y utiliza la configuración de
 
 **Docente:** Adriana Arango L.  
 **Institución:** UPB — Escuela de Ingenierías
-
-## 📄 Licencia
-
-Este repositorio no declara actualmente una licencia de software. Si deseas permitir la reutilización del código, agrega un archivo `LICENSE` con la licencia correspondiente.
