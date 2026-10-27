@@ -1,241 +1,292 @@
-"""Cálculos de series uniformes vencidas."""
+"""Cálculos y análisis de series uniformes (anualidades) vencidas y anticipadas."""
 
 import math
-
 import pandas as pd
-import plotly.express as px
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 import streamlit as st
 
 
-def valor_futuro_serie(cuota: float, tasa_porcentaje: float, periodos: int) -> float:
-    """Valor futuro de una serie uniforme vencida."""
-    cuota, tasa, periodos = _validar_serie(cuota, tasa_porcentaje, periodos)
-    if tasa == 0:
-        return cuota * periodos
-    return cuota * (((1 + tasa) ** periodos - 1) / tasa)
-
-
-def valor_presente_serie(cuota: float, tasa_porcentaje: float, periodos: int) -> float:
-    """Valor presente de una serie uniforme vencida."""
-    cuota, tasa, periodos = _validar_serie(cuota, tasa_porcentaje, periodos)
-    if tasa == 0:
-        return cuota * periodos
-    return cuota * ((1 - (1 + tasa) ** (-periodos)) / tasa)
-
-
-def cuota_para_valor_futuro(valor_futuro: float, tasa_porcentaje: float, periodos: int) -> float:
-    """Cuota vencida necesaria para alcanzar un valor futuro objetivo."""
-    objetivo = _valor_no_negativo(valor_futuro, "El valor futuro")
-    tasa, periodos = _validar_tasa_periodos(tasa_porcentaje, periodos)
-    if tasa == 0:
-        return objetivo / periodos
-    return objetivo * tasa / ((1 + tasa) ** periodos - 1)
-
-
-def cuota_para_prestamo(valor_presente: float, tasa_porcentaje: float, periodos: int) -> float:
-    """Cuota vencida constante para amortizar un préstamo."""
-    principal = _valor_no_negativo(valor_presente, "El valor presente")
-    tasa, periodos = _validar_tasa_periodos(tasa_porcentaje, periodos)
-    if tasa == 0:
-        return principal / periodos
-    return principal * tasa / (1 - (1 + tasa) ** (-periodos))
-
-
-def _validar_serie(cuota: float, tasa_porcentaje: float, periodos: int):
-    importe = _valor_no_negativo(cuota, "La cuota")
-    tasa, periodos = _validar_tasa_periodos(tasa_porcentaje, periodos)
-    return importe, tasa, periodos
-
-
-def _validar_tasa_periodos(tasa_porcentaje: float, periodos: int):
-    tasa_pct = _valor_finito(tasa_porcentaje, "La tasa")
-    tasa = tasa_pct / 100
-    if tasa <= -1:
-        raise ValueError("La tasa efectiva por período debe ser mayor que −100%.")
-    if isinstance(periodos, bool) or not isinstance(periodos, int) or periodos < 1:
-        raise ValueError("El número de períodos debe ser un entero igual o mayor que uno.")
-    return tasa, periodos
-
-
-def _valor_no_negativo(valor: float, nombre: str) -> float:
-    numero = _valor_finito(valor, nombre)
-    if numero < 0:
-        raise ValueError(f"{nombre} no puede ser negativo.")
-    return numero
-
-
-def _valor_finito(valor: float, nombre: str) -> float:
-    try:
-        numero = float(valor)
-    except (TypeError, ValueError) as error:
-        raise ValueError(f"{nombre} debe ser un número válido.") from error
-    if not math.isfinite(numero):
-        raise ValueError(f"{nombre} debe ser un valor finito.")
-    return numero
-
-
-def _cop(valor: float) -> str:
+def formato_cop(valor: float) -> str:
+    """Formatea un valor en pesos colombianos para presentación."""
+    if not math.isfinite(valor):
+        return "N/A"
     return f"${valor:,.2f} COP".replace(",", "X").replace(".", ",").replace("X", ".")
 
 
-def _verificar_resultados(valores):
-    if not all(math.isfinite(valor) for valor in valores):
-        raise ValueError("El resultado excede el rango numérico disponible.")
+# ------------------ FUNCIONES MATEMÁTICAS ------------------
+
+def valor_futuro_serie(cuota: float, tasa_porcentaje: float, periodos: int, modalidad: str = "Vencida") -> float:
+    """Calcula el Valor Futuro (VF) de una serie uniforme vencida o anticipada."""
+    cuota, tasa, periodos = _validar_entradas(cuota, tasa_porcentaje, periodos)
+    if tasa == 0:
+        return cuota * periodos
+    vf_vencido = cuota * (((1.0 + tasa) ** periodos - 1.0) / tasa)
+    if modalidad == "Anticipada":
+        return vf_vencido * (1.0 + tasa)
+    return vf_vencido
 
 
-def _datos_flujo(operacion: str, cuota: float, tasa: float, periodos: int, saldo_inicial: float = 0.0):
-    """Construye filas sin redondeo para el flujo y su saldo acumulado."""
-    filas = [{"Período": 0, "Flujo (COP)": 0.0, "Interés (COP)": 0.0, "Saldo (COP)": saldo_inicial}]
-    saldo = saldo_inicial
-    for periodo in range(1, periodos + 1):
-        interes = saldo * tasa
-        if operacion == "préstamo":
-            saldo = saldo + interes - cuota
-            flujo = -cuota
-        elif operacion == "presente":
-            saldo += cuota / (1 + tasa) ** periodo
-            interes = 0.0
-            flujo = cuota
+def valor_presente_serie(cuota: float, tasa_porcentaje: float, periodos: int, modalidad: str = "Vencida") -> float:
+    """Calcula el Valor Presente (VP) de una serie uniforme vencida o anticipada."""
+    cuota, tasa, periodos = _validar_entradas(cuota, tasa_porcentaje, periodos)
+    if tasa == 0:
+        return cuota * periodos
+    vp_vencido = cuota * ((1.0 - (1.0 + tasa) ** (-periodos)) / tasa)
+    if modalidad == "Anticipada":
+        return vp_vencido * (1.0 + tasa)
+    return vp_vencido
+
+
+def cuota_para_valor_futuro(valor_futuro: float, tasa_porcentaje: float, periodos: int, modalidad: str = "Vencida") -> float:
+    """Calcula la cuota periódica para acumular un fondo futuro."""
+    if valor_futuro < 0:
+        raise ValueError("El valor futuro no puede ser negativo.")
+    _, tasa, periodos = _validar_entradas(0.0, tasa_porcentaje, periodos)
+    if tasa == 0:
+        return valor_futuro / periodos
+    factor = ((1.0 + tasa) ** periodos - 1.0) / tasa
+    if modalidad == "Anticipada":
+        factor *= (1.0 + tasa)
+    return valor_futuro / factor
+
+
+def cuota_para_prestamo(valor_presente: float, tasa_porcentaje: float, periodos: int, modalidad: str = "Vencida") -> float:
+    """Calcula la cuota periódica requerida para amortizar un préstamo."""
+    if valor_presente < 0:
+        raise ValueError("El valor presente no puede ser negativo.")
+    _, tasa, periodos = _validar_entradas(0.0, tasa_porcentaje, periodos)
+    if tasa == 0:
+        return valor_presente / periodos
+    factor = (1.0 - (1.0 + tasa) ** (-periodos)) / tasa
+    if modalidad == "Anticipada":
+        factor *= (1.0 + tasa)
+    return valor_presente / factor
+
+
+def generar_flujo_serie(
+    operacion_tipo: str,
+    cuota: float,
+    tasa_pct: float,
+    periodos: int,
+    modalidad: str = "Vencida",
+    monto_base: float = 0.0
+) -> pd.DataFrame:
+    """Genera la tabla período a período con el flujo de pago y el saldo acumulado."""
+    tasa = tasa_pct / 100.0
+    filas = []
+
+    if "Ahorro" in operacion_tipo or "Futuro" in operacion_tipo:
+        saldo = 0.0
+        if modalidad == "Anticipada":
+            saldo = cuota
+            filas.append({"Período": 0, "Flujo Pago (COP)": cuota, "Interés Ganado (COP)": 0.0, "Saldo Acumulado (COP)": saldo})
+            for p in range(1, periodos):
+                interes = saldo * tasa
+                saldo = saldo + interes + cuota
+                filas.append({"Período": p, "Flujo Pago (COP)": cuota, "Interés Ganado (COP)": interes, "Saldo Acumulado (COP)": saldo})
+            interes_final = saldo * tasa
+            saldo_final = saldo + interes_final
+            filas.append({"Período": periodos, "Flujo Pago (COP)": 0.0, "Interés Ganado (COP)": interes_final, "Saldo Acumulado (COP)": saldo_final})
         else:
-            saldo = saldo * (1 + tasa) + cuota
-            flujo = cuota
-        if abs(saldo) < 1e-8:
+            filas.append({"Período": 0, "Flujo Pago (COP)": 0.0, "Interés Ganado (COP)": 0.0, "Saldo Acumulado (COP)": 0.0})
             saldo = 0.0
-        filas.append({"Período": periodo, "Flujo (COP)": flujo, "Interés (COP)": interes, "Saldo (COP)": saldo})
+            for p in range(1, periodos + 1):
+                interes = saldo * tasa
+                saldo = saldo + interes + cuota
+                filas.append({"Período": p, "Flujo Pago (COP)": cuota, "Interés Ganado (COP)": interes, "Saldo Acumulado (COP)": saldo})
+    else:
+        saldo = monto_base
+        if modalidad == "Anticipada":
+            abono_0 = cuota
+            saldo -= abono_0
+            filas.append({"Período": 0, "Flujo Pago (COP)": -cuota, "Interés Ganado (COP)": 0.0, "Saldo Acumulado (COP)": saldo})
+            for p in range(1, periodos):
+                interes = saldo * tasa
+                abono = cuota - interes
+                saldo -= abono
+                filas.append({"Período": p, "Flujo Pago (COP)": -cuota, "Interés Ganado (COP)": interes, "Saldo Acumulado (COP)": max(0.0, saldo)})
+        else:
+            filas.append({"Período": 0, "Flujo Pago (COP)": 0.0, "Interés Ganado (COP)": 0.0, "Saldo Acumulado (COP)": saldo})
+            for p in range(1, periodos + 1):
+                interes = saldo * tasa
+                abono = cuota - interes
+                saldo -= abono
+                filas.append({"Período": p, "Flujo Pago (COP)": -cuota, "Interés Ganado (COP)": interes, "Saldo Acumulado (COP)": max(0.0, saldo)})
+
     return pd.DataFrame(filas)
 
 
+def _validar_entradas(cuota: float, tasa_porcentaje: float, periodos: int):
+    c = float(cuota)
+    t = float(tasa_porcentaje) / 100.0
+    p = int(periodos)
+    if c < 0:
+        raise ValueError("La cuota no puede ser negativa.")
+    if t <= -1.0:
+        raise ValueError("La tasa periódica debe ser mayor que -100%.")
+    if p < 1:
+        raise ValueError("El número de períodos debe ser mayor o igual a 1.")
+    return c, t, p
+
+
+# ------------------ RENDER STREAMLIT ------------------
+
 def render():
-    st.title("Series uniformes")
+    st.title("Series Uniformes (Anualidades)")
     st.write(
-        "Calcula equivalencias y cuotas para una serie de pagos iguales realizados al final de cada período. "
-        "Estas fórmulas corresponden a series vencidas; las series anticipadas no están incluidas."
+        "Herramienta integral para cálculo de series uniformes **vencidas** y **anticipadas**. "
+        "Permite hallar Valor Presente, Valor Futuro y Cuota Periódica, con visualización combinada del flujo de pagos y saldo acumulado."
     )
 
-    frecuencia = st.selectbox(
-        "Frecuencia de los pagos",
-        ["Mensual", "Bimestral", "Trimestral", "Cuatrimestral", "Semestral", "Anual", "Otra frecuencia"],
-        key="series_frecuencia",
-    )
-    if frecuencia == "Otra frecuencia":
-        frecuencia = st.text_input("Describe la frecuencia", value="Por período")
-    st.caption(
-        f"Frecuencia seleccionada: {frecuencia}. La tasa ingresada debe ser efectiva por período y "
-        "el número de períodos debe contar pagos en esa misma frecuencia."
-    )
+    tab_calc, tab_verif = st.tabs(["🔁 Calculadora de Anualidades", "✅ Supuestos y Verificación"])
 
-    operacion = st.selectbox(
-        "Cálculo",
-        [
-            "Valor futuro de una serie",
-            "Valor presente de una serie",
-            "Cuota para alcanzar un valor futuro",
-            "Cuota para pagar un préstamo",
-        ],
-        key="series_operacion",
-    )
+    with tab_calc:
+        col_ctrl, col_view = st.columns([0.38, 0.62], gap="large")
 
-    with st.form("formulario_series_uniformes"):
-        columna_1, columna_2, columna_3 = st.columns(3)
-        with columna_1:
-            if operacion in ("Valor futuro de una serie", "Valor presente de una serie"):
-                importe = st.number_input("Cuota periódica (COP)", min_value=0.0, value=100_000.0, step=10_000.0, format="%.2f")
-            else:
-                importe = st.number_input(
-                    "Valor futuro objetivo (COP)" if operacion == "Cuota para alcanzar un valor futuro" else "Valor presente del préstamo (COP)",
-                    min_value=0.0, value=1_000_000.0, step=100_000.0, format="%.2f",
+        with col_ctrl:
+            st.markdown("#### 🎛️ Parámetros de la Anualidad")
+            modalidad = st.radio("Modalidad de la serie", ["Vencida", "Anticipada"], horizontal=True, key="serie_modalidad")
+            operacion = st.selectbox(
+                "Objetivo del cálculo",
+                [
+                    "Valor Futuro de la serie (Ahorro)",
+                    "Valor Presente de la serie (Préstamo / Inversión)",
+                    "Cuota requerida para meta de Valor Futuro",
+                    "Cuota requerida para amortizar Préstamo (Valor Presente)",
+                ],
+                key="serie_operacion",
+            )
+
+            with st.form("form_series"):
+                if operacion in ("Valor Futuro de la serie (Ahorro)", "Valor Presente de la serie (Préstamo / Inversión)"):
+                    importe = st.number_input("Cuota periódica constante A (COP)", min_value=0.0, value=500_000.0, step=50_000.0, format="%.2f")
+                elif operacion == "Cuota requerida para meta de Valor Futuro":
+                    importe = st.number_input("Monto objetivo futuro VF (COP)", min_value=0.0, value=20_000_000.0, step=1_000_000.0, format="%.2f")
+                else:
+                    importe = st.number_input("Monto del préstamo VP (COP)", min_value=0.0, value=20_000_000.0, step=1_000_000.0, format="%.2f")
+
+                tasa_pct = st.number_input("Tasa periódica efectiva i (%)", min_value=0.0, value=1.5, step=0.1, format="%.4f")
+                n_periodos = st.number_input("Número de pagos / períodos (n)", min_value=1, max_value=360, value=24, step=1)
+                btn_calcular = st.form_submit_button("Recalcular Serie Uniforme", type="primary")
+
+        with col_view:
+            st.markdown("#### 📊 Proyección del Flujo y Acumulación")
+            try:
+                if operacion == "Valor Futuro de la serie (Ahorro)":
+                    cuota_val = importe
+                    resultado = valor_futuro_serie(cuota_val, tasa_pct, n_periodos, modalidad)
+                    etiqueta = "Valor Futuro Acumulado (VF)"
+                    formula = r"VF_v = A \cdot \left[\frac{(1+i)^n - 1}{i}\right]" if modalidad == "Vencida" else r"VF_a = A \cdot \left[\frac{(1+i)^n - 1}{i}\right] \cdot (1+i)"
+                    df_flujo = generar_flujo_serie("Ahorro", cuota_val, tasa_pct, n_periodos, modalidad)
+
+                elif operacion == "Valor Presente de la serie (Préstamo / Inversión)":
+                    cuota_val = importe
+                    resultado = valor_presente_serie(cuota_val, tasa_pct, n_periodos, modalidad)
+                    etiqueta = "Valor Presente Equivalente (VP)"
+                    formula = r"VP_v = A \cdot \left[\frac{1-(1+i)^{-n}}{i}\right]" if modalidad == "Vencida" else r"VP_a = A \cdot \left[\frac{1-(1+i)^{-n}}{i}\right] \cdot (1+i)"
+                    df_flujo = generar_flujo_serie("Préstamo", cuota_val, tasa_pct, n_periodos, modalidad, monto_base=resultado)
+
+                elif operacion == "Cuota requerida para meta de Valor Futuro":
+                    resultado = cuota_para_valor_futuro(importe, tasa_pct, n_periodos, modalidad)
+                    cuota_val = resultado
+                    etiqueta = "Cuota Periódica a Depositar (A)"
+                    formula = r"A_v = VF \cdot \left[\frac{i}{(1+i)^n - 1}\right]" if modalidad == "Vencida" else r"A_a = \frac{VF}{(1+i) \cdot \left[\frac{(1+i)^n - 1}{i}\right]}"
+                    df_flujo = generar_flujo_serie("Ahorro", cuota_val, tasa_pct, n_periodos, modalidad)
+
+                else:
+                    resultado = cuota_para_prestamo(importe, tasa_pct, n_periodos, modalidad)
+                    cuota_val = resultado
+                    etiqueta = "Cuota Periódica del Préstamo (A)"
+                    formula = r"A_v = VP \cdot \left[\frac{i}{1-(1+i)^{-n}}\right]" if modalidad == "Vencida" else r"A_a = \frac{VP}{(1+i) \cdot \left[\frac{1-(1+i)^{-n}}{i}\right]}"
+                    df_flujo = generar_flujo_serie("Préstamo", cuota_val, tasa_pct, n_periodos, modalidad, monto_base=importe)
+
+                m1, m2, m3 = st.columns(3)
+                m1.metric("Modalidad", modalidad)
+                m2.metric(etiqueta, formato_cop(resultado))
+                m3.metric("Total Aportado en Cuotas", formato_cop(cuota_val * n_periodos))
+
+                # Gráfico combinado
+                fig = make_subplots(specs=[[{"secondary_y": True}]])
+                fig.add_trace(
+                    go.Bar(
+                        x=df_flujo["Período"],
+                        y=df_flujo["Flujo Pago (COP)"].abs(),
+                        name="Cuota Periódica",
+                        marker=dict(color="#93c5fd", line=dict(color="#2563eb", width=1)),
+                        opacity=0.85,
+                    ),
+                    secondary_y=False,
                 )
-        with columna_2:
-            tasa_pct = st.number_input("Tasa efectiva por período (%)", value=1.0, step=0.25, format="%.6f")
-        with columna_3:
-            periodos = st.number_input("Número de períodos (n)", min_value=1, max_value=10000, value=12, step=1, format="%d")
-        enviar = st.form_submit_button("Calcular", type="primary")
+                fig.add_trace(
+                    go.Scatter(
+                        x=df_flujo["Período"],
+                        y=df_flujo["Saldo Acumulado (COP)"],
+                        mode="lines+markers",
+                        name="Saldo Acumulado",
+                        line=dict(color="#1e40af", width=3, shape="spline"),
+                        fill="tozeroy",
+                        fillcolor="rgba(30, 64, 175, 0.08)",
+                    ),
+                    secondary_y=True,
+                )
+                fig.update_layout(
+                    title=f"Flujo y Saldo Acumulado ({modalidad})",
+                    xaxis_title="Período",
+                    template="plotly_white",
+                    legend=dict(orientation="h", y=1.1, x=0.2),
+                    margin=dict(l=20, r=20, t=50, b=20),
+                    height=290,
+                )
+                fig.update_yaxes(title_text="Cuota (COP)", secondary_y=False)
+                fig.update_yaxes(title_text="Saldo (COP)", secondary_y=True)
+                st.plotly_chart(fig, use_container_width=True)
 
-    if not enviar:
-        return
+                st.markdown("##### Sustento Matemático y Fórmulas")
+                st.latex(formula)
+                t_dec = tasa_pct / 100.0
+                if operacion == "Valor Futuro de la serie (Ahorro)":
+                    st.latex(rf"VF = {cuota_val:,.2f} \cdot \left[\frac{{(1 + {t_dec:.6g})^{{{n_periodos}}} - 1}}{{{t_dec:.6g}}}\right] = {resultado:,.2f}\text{{ COP}}")
+                elif operacion == "Valor Presente de la serie (Préstamo / Inversión)":
+                    st.latex(rf"VP = {cuota_val:,.2f} \cdot \left[\frac{{1 - (1 + {t_dec:.6g})^{{-{n_periodos}}}}}{{{t_dec:.6g}}}\right] = {resultado:,.2f}\text{{ COP}}")
+                elif operacion == "Cuota requerida para meta de Valor Futuro":
+                    st.latex(rf"A = {importe:,.2f} \cdot \left[\frac{{{t_dec:.6g}}}{{(1 + {t_dec:.6g})^{{{n_periodos}}} - 1}}\right] = {resultado:,.2f}\text{{ COP}}")
+                else:
+                    st.latex(rf"A = {importe:,.2f} \cdot \left[\frac{{{t_dec:.6g}}}{{1 - (1 + {t_dec:.6g})^{{-{n_periodos}}}}}\right] = {resultado:,.2f}\text{{ COP}}")
 
-    try:
-        if isinstance(periodos, bool) or int(periodos) != periodos or periodos < 1:
-            raise ValueError("El número de períodos debe ser un entero igual o mayor que uno.")
-        periodos = int(periodos)
-        tasa_pct = _valor_finito(tasa_pct, "La tasa")
-        tasa = tasa_pct / 100
-        if tasa <= -1:
-            raise ValueError("La tasa efectiva por período debe ser mayor que −100%.")
-        importe = _valor_no_negativo(importe, "El importe")
+            except Exception as e:
+                st.error(f"Error en el cálculo: {e}")
 
-        if operacion == "Valor futuro de una serie":
-            cuota = importe
-            resultado = valor_futuro_serie(cuota, tasa_pct, periodos)
-            etiqueta = "Valor futuro"
-            formula = r"VF = A \times \frac{(1+i)^{n}-1}{i}"
-            explicacion = "A: cuota por período · i: tasa efectiva por período en decimal · n: número de pagos · VF: valor acumulado al final del período n."
-            flujo_tipo, saldo_inicial = "ahorro", 0.0
-        elif operacion == "Valor presente de una serie":
-            cuota = importe
-            resultado = valor_presente_serie(cuota, tasa_pct, periodos)
-            etiqueta = "Valor presente"
-            formula = r"VP = A \times \frac{1-(1+i)^{-n}}{i}"
-            explicacion = "A: cuota por período · i: tasa efectiva por período en decimal · n: número de pagos · VP: valor equivalente en el período cero."
-            flujo_tipo, saldo_inicial = "presente", 0.0
-        elif operacion == "Cuota para alcanzar un valor futuro":
-            resultado = cuota_para_valor_futuro(importe, tasa_pct, periodos)
-            cuota = resultado
-            etiqueta = "Cuota periódica requerida"
-            formula = r"A = VF \times \frac{i}{(1+i)^{n}-1}"
-            explicacion = "VF: valor futuro objetivo · A: cuota al final de cada período · i: tasa efectiva por período en decimal · n: número de pagos."
-            flujo_tipo, saldo_inicial = "ahorro", 0.0
-        else:
-            resultado = cuota_para_prestamo(importe, tasa_pct, periodos)
-            cuota = resultado
-            etiqueta = "Cuota periódica del préstamo"
-            formula = r"A = VP \times \frac{i}{1-(1+i)^{-n}}"
-            explicacion = "VP: valor presente del préstamo · A: cuota al final de cada período · i: tasa efectiva por período en decimal · n: número de cuotas."
-            flujo_tipo, saldo_inicial = "préstamo", importe
+        st.markdown("##### 📋 Flujo Período a Período")
+        df_mostrar = df_flujo.copy()
+        for col in ["Flujo Pago (COP)", "Interés Ganado (COP)", "Saldo Acumulado (COP)"]:
+            df_mostrar[col] = df_mostrar[col].map(formato_cop)
+        st.dataframe(df_mostrar, use_container_width=True, hide_index=True)
 
-        _verificar_resultados([resultado, cuota])
-        datos = _datos_flujo(flujo_tipo, cuota, tasa, periodos, saldo_inicial)
-        _verificar_resultados(datos["Saldo (COP)"].tolist())
-    except (ValueError, OverflowError) as error:
-        st.error(str(error) or "El resultado excede el rango numérico disponible.")
-        return
+    with tab_verif:
+        st.subheader("Supuestos Técnicos y Verificación de Series Uniformes")
+        col_s, col_v = st.columns(2, gap="large")
+        with col_s:
+            st.markdown(
+                """
+                #### Supuestos Técnicos:
+                1. **Pagos Iguales y Periódicos**: Todas las cuotas $A$ son constantes y ocurren a intervalos de tiempo idénticos.
+                2. **Tasa de Interés Homogénea**: La tasa periódica $i$ permanece constante a lo largo de los $n$ períodos.
+                3. **Relación Vencida vs Anticipada**: Cada pago de una serie anticipada se realiza al inicio del período, capitalizando un período adicional de intereses frente a la modalidad vencida.
+                """
+            )
+            st.latex(r"VP_{\text{anticipada}} = VP_{\text{vencida}} \cdot (1 + i) \quad \text{y} \quad VF_{\text{anticipada}} = VF_{\text{vencida}} \cdot (1 + i)")
 
-    st.markdown("#### Datos ingresados")
-    nombre_importe = {
-        "Valor futuro de una serie": "Cuota periódica",
-        "Valor presente de una serie": "Cuota periódica",
-        "Cuota para alcanzar un valor futuro": "Valor futuro objetivo",
-        "Cuota para pagar un préstamo": "Valor presente del préstamo",
-    }[operacion]
-    datos_fila_1 = st.columns(3)
-    datos_fila_1[0].metric("Operación", operacion)
-    datos_fila_1[1].metric(nombre_importe, _cop(importe))
-    datos_fila_1[2].metric("Frecuencia", frecuencia)
-    datos_fila_2 = st.columns(2)
-    datos_fila_2[0].metric("Tasa efectiva por período", f"{tasa_pct:.6f}% ({tasa:.8g} decimal)")
-    datos_fila_2[1].metric("Número de períodos", str(periodos))
-    st.metric(etiqueta, _cop(resultado))
-    st.markdown("#### Fórmula utilizada")
-    st.latex(formula)
-    st.caption(explicacion + (" Cuando i = 0 se utilizan los límites: VF = A·n, VP = A·n y A = VF/n o VP/n.") )
-
-    st.markdown("#### Flujo y saldo por período")
-    st.caption("El saldo mostrado se acumula período a período; en préstamos representa el saldo pendiente después de cada cuota.")
-    st.dataframe(datos.style.format({col: _cop for col in ["Flujo (COP)", "Interés (COP)", "Saldo (COP)"]}), width="stretch", hide_index=True)
-
-    titulo = {
-        "ahorro": "Saldo del ahorro por período",
-        "presente": "Valor presente acumulado por período",
-        "préstamo": "Saldo pendiente del préstamo",
-    }[flujo_tipo]
-    grafica = px.line(
-        datos,
-        x="Período",
-        y="Saldo (COP)",
-        markers=True,
-        title=titulo,
-        template="plotly_dark",
-    )
-    grafica.update_traces(hovertemplate="Período %{x}<br>Saldo: $%{y:,.2f} COP<extra></extra>")
-    grafica.update_layout(hovermode="x unified", margin={"l": 20, "r": 20, "t": 55, "b": 20})
-    st.plotly_chart(grafica, width="stretch")
+        with col_v:
+            st.markdown("#### Comprobación de Cálculo Manual (Paso a Paso)")
+            st.latex(r"A = 100{.}000\text{ COP}, \quad i = 10\%\text{ periódico } (0{,}10), \quad n = 3\text{ períodos}")
+            st.latex(
+                r"""
+                \begin{aligned}
+                VF_v &= 100{.}000 \cdot \frac{(1{,}10)^3 - 1}{0{,}10} = 331{.}000\text{ COP} \quad \text{✅} \\
+                VF_a &= 331{.}000 \cdot (1 + 0{,}10) = 364{.}100\text{ COP} \quad \text{✅} \\
+                VP_v &= 100{.}000 \cdot \frac{1 - (1{,}10)^{-3}}{0{,}10} = 248{.}685{,}20\text{ COP} \quad \text{✅} \\
+                VP_a &= 248{.}685{,}20 \cdot (1 + 0{,}10) = 273{.}553{,}72\text{ COP} \quad \text{✅ Verificado}
+                \end{aligned}
+                """
+            )

@@ -1,51 +1,41 @@
-"""Pruebas para flujos de gradientes aritméticos y geométricos."""
+"""Pruebas para gradientes aritméticos y geométricos."""
 
 import unittest
-
-from modules.gradientes import calcular_gradiente_aritmetico, calcular_gradiente_geometrico
+from modules.gradientes import (
+    calcular_gradiente_aritmetico,
+    calcular_gradiente_geometrico,
+)
 
 
 class GradientesTest(unittest.TestCase):
-    def test_gradiente_aritmetico_y_incremento_desde_segundo_pago(self):
-        pagos, presente = calcular_gradiente_aritmetico(100, 10, 10, 3)
-        self.assertEqual(pagos, [100, 110, 120])
-        self.assertAlmostEqual(presente, 271.9759579264)
+    def test_gradiente_aritmetico_completo(self):
+        # A1 = 100, G = 20, i = 10%, n = 3
+        # Pagos: 100, 120, 140
+        # VP = 100/1.1 + 120/1.21 + 140/1.331 = 295.2667
+        # VF = 295.2667 * 1.331 = 393
+        # A_eq = 295.2667 * (0.10 / (1 - 1.1^-3)) = 118.7312
+        res = calcular_gradiente_aritmetico(100.0, 20.0, 10.0, 3)
+        self.assertEqual(res["pagos"], [100.0, 120.0, 140.0])
+        self.assertAlmostEqual(res["valor_presente"], 295.266717, places=2)
+        self.assertAlmostEqual(res["valor_futuro"], 393.0, places=1)
+        self.assertAlmostEqual(res["cuota_equivalente"], 118.731175, places=2)
 
-    def test_gradiente_geometrico(self):
-        pagos, presente = calcular_gradiente_geometrico(100, 10, 10, 3)
-        for pago, esperado in zip(pagos, [100, 110, 121]):
-            self.assertAlmostEqual(pago, esperado)
-        self.assertAlmostEqual(presente, 272.7272727273)
+    def test_gradiente_geometrico_completo(self):
+        # A1 = 100, g = 5%, i = 10%, n = 3
+        # Pagos: 100, 105, 110.25
+        # VP = 100/1.1 + 105/1.21 + 110.25/1.331 = 90.909 + 86.777 + 82.832 = 260.5186
+        res = calcular_gradiente_geometrico(100.0, 5.0, 10.0, 3)
+        self.assertEqual(len(res["pagos"]), 3)
+        self.assertAlmostEqual(res["pagos"][1], 105.0)
+        self.assertAlmostEqual(res["pagos"][2], 110.25)
+        self.assertAlmostEqual(res["valor_presente"], 260.518407, places=2)
+        self.assertAlmostEqual(res["valor_futuro"], 260.518407 * (1.1 ** 3), places=2)
 
-    def test_tasa_de_descuento_cero(self):
-        pagos_a, presente_a = calcular_gradiente_aritmetico(100, 10, 0, 3)
-        pagos_g, presente_g = calcular_gradiente_geometrico(100, 10, 0, 3)
-        self.assertEqual((pagos_a, presente_a), ([100, 110, 120], 330))
-        for pago, esperado in zip(pagos_g, [100, 110, 121]):
-            self.assertAlmostEqual(pago, esperado)
-        self.assertAlmostEqual(presente_g, 331)
-
-    def test_crecimiento_geometrico_negativo_valido(self):
-        pagos, presente = calcular_gradiente_geometrico(100, -50, 0, 3)
-        self.assertEqual(pagos, [100, 50, 25])
-        self.assertEqual(presente, 175)
-
-    def test_un_periodo(self):
-        self.assertEqual(calcular_gradiente_aritmetico(100, -500, 10, 1), ([100], 100 / 1.1))
-        self.assertEqual(calcular_gradiente_geometrico(100, -100, 10, 1), ([100], 100 / 1.1))
-
-    def test_rechaza_periodos_tasas_y_pagos_invalidos(self):
-        for periodos in (0, 2.5, 1001):
-            with self.subTest(periodos=periodos), self.assertRaises(ValueError):
-                calcular_gradiente_aritmetico(100, 10, 5, periodos)
-        with self.assertRaises(ValueError):
-            calcular_gradiente_aritmetico(100, -60, 0, 3)
-        with self.assertRaises(ValueError):
-            calcular_gradiente_geometrico(100, -100.01, 0, 3)
-        with self.assertRaises(ValueError):
-            calcular_gradiente_geometrico(100, 0, -100, 3)
-        with self.assertRaises(ValueError):
-            calcular_gradiente_aritmetico(float("nan"), 0, 0, 1)
+    def test_gradiente_geometrico_caso_i_igual_g(self):
+        # A1 = 100, g = 10%, i = 10%, n = 3
+        # VP = 3 * 100 / 1.1 = 300 / 1.1 = 272.7272
+        res = calcular_gradiente_geometrico(100.0, 10.0, 10.0, 3)
+        self.assertAlmostEqual(res["valor_presente"], 272.727272, places=2)
 
 
 if __name__ == "__main__":

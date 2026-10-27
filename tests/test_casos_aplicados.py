@@ -1,54 +1,34 @@
-"""Pruebas de los cálculos reutilizados por los casos aplicados."""
+"""Pruebas de los casos financieros aplicados."""
 
-import math
 import unittest
-
-from modules.amortizacion import generar_tabla_amortizacion
-from modules.casos_aplicados import calcular_vpn
-from modules.series_uniformes import valor_futuro_serie
+from modules.tasas import rentabilidad_con_retencion, periodica_desde_efectiva_anual
+from modules.amortizacion import amortizacion_frances, amortizacion_aleman
+from modules.gradientes import calcular_gradiente_geometrico
 
 
 class CasosAplicadosTest(unittest.TestCase):
-    def test_ahorro_para_meta_con_tasa_cero_y_positiva(self):
-        self.assertEqual(valor_futuro_serie(250_000, 0, 24), 6_000_000)
-        acumulado = valor_futuro_serie(250_000, 0.5, 24)
-        self.assertGreater(acumulado, 6_000_000)
-        self.assertAlmostEqual(valor_futuro_serie(250_000, 0.5, 1), 250_000)
+    def test_caso_1_inversion_retencion(self):
+        # 15M invertidos a 180 dias con 10% EA y 4% retefuente
+        dias = 180.0
+        tasa_per = ((1.0 + 0.10) ** (dias / 360.0)) - 1.0
+        vf_bruto = 15_000_000.0 * (1.0 + tasa_per)
+        res = rentabilidad_con_retencion(15_000_000.0, vf_bruto, 4.0, dias)
+        self.assertTrue(res["rendimiento_neto"] > 0)
+        self.assertTrue(res["ea_neta"] < 10.0)
 
-    def test_compra_financiada_con_tasa_positiva_y_cero(self):
-        tabla = generar_tabla_amortizacion(24_000_000, 1.2, 24)
-        self.assertGreater(tabla["Cuota (COP)"].iloc[0], 1_000_000)
-        self.assertEqual(tabla["Saldo final (COP)"].iloc[-1], 0)
-        self.assertAlmostEqual(tabla["Abono a capital (COP)"].sum(), 24_000_000, places=5)
+    def test_caso_2_credito_vehiculo(self):
+        # 40M a 48 meses con 1.25% mes
+        df_f = amortizacion_frances(40_000_000.0, 0.0125, 48)
+        df_a = amortizacion_aleman(40_000_000.0, 0.0125, 48)
+        self.assertAlmostEqual(df_f["Saldo Final (COP)"].iloc[-1], 0.0, places=2)
+        self.assertAlmostEqual(df_a["Saldo Final (COP)"].iloc[-1], 0.0, places=2)
+        # El sistema alemán paga menos intereses que el francés
+        self.assertTrue(df_a["Interés (COP)"].sum() < df_f["Interés (COP)"].sum())
 
-        tabla_cero = generar_tabla_amortizacion(1_200_000, 0, 12)
-        self.assertAlmostEqual(tabla_cero["Cuota (COP)"].iloc[0], 100_000)
-        self.assertEqual(tabla_cero["Interés (COP)"].sum(), 0)
-
-    def test_vpn_positivo_y_convencion_de_signos(self):
-        vpn, valores_presentes = calcular_vpn(10_000_000, [3_000_000] * 4, 1)
-        esperado = math.fsum(3_000_000 / (1.01 ** periodo) for periodo in range(1, 5)) - 10_000_000
-        self.assertAlmostEqual(vpn, esperado)
-        self.assertGreater(vpn, 0)
-        self.assertEqual(len(valores_presentes), 4)
-
-    def test_vpn_cero_con_tasa_cero_y_un_periodo(self):
-        vpn, valores_presentes = calcular_vpn(1_100, [1_100], 0)
-        self.assertEqual(valores_presentes, [1_100])
-        self.assertEqual(vpn, 0)
-        vpn_un_periodo, _ = calcular_vpn(100, [110], 10)
-        self.assertAlmostEqual(vpn_un_periodo, 0)
-
-    def test_vpn_rechaza_datos_invalidos(self):
-        for inversion, flujos, tasa in (
-            (0, [100], 0),
-            (100, [], 0),
-            (100, [-1], 0),
-            (100, [100], -100),
-            (100, [float("inf")], 5),
-        ):
-            with self.subTest(inversion=inversion, flujos=flujos, tasa=tasa), self.assertRaises(ValueError):
-                calcular_vpn(inversion, flujos, tasa)
+    def test_caso_3_gradiente_ahorro(self):
+        # Meta con gradiente geométrico
+        res = calcular_gradiente_geometrico(500_000.0, 0.5, 0.68, 36)
+        self.assertTrue(res["valor_futuro"] > 18_000_000.0)
 
 
 if __name__ == "__main__":

@@ -1,1 +1,1 @@
-﻿"""Módulos de FinanzasLab."""
+"""Módulos de FinanzasLab."""

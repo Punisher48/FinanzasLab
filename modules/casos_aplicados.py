@@ -1,242 +1,318 @@
-"""Casos financieros ilustrativos basados en las funciones de FinanzasLab."""
+"""Casos Financieros Aplicados con datos del mercado financiero colombiano."""
 
 import math
-
 import pandas as pd
-import plotly.express as px
+import plotly.graph_objects as go
 import streamlit as st
 
-from modules.amortizacion import MAX_CUOTAS, generar_tabla_amortizacion
-from modules.series_uniformes import valor_futuro_serie
+from modules.amortizacion import amortizacion_frances, amortizacion_aleman
+from modules.gradientes import calcular_gradiente_geometrico
+from modules.series_uniformes import valor_futuro_serie, cuota_para_valor_futuro
+from modules.tasas import (
+    periodica_desde_efectiva_anual,
+    efectiva_anual_desde_periodica,
+    rentabilidad_con_retencion,
+)
 
 
-def calcular_vpn(inversion_inicial: float, flujos_futuros: list[float], tasa_porcentaje: float) -> tuple[float, list[float]]:
-    """Calcula VPN = suma de flujos futuros descontados menos inversión inicial."""
-    inversion = _finito(inversion_inicial, "La inversión inicial")
-    tasa_pct = _finito(tasa_porcentaje, "La tasa de descuento")
-    if inversion <= 0:
-        raise ValueError("La inversión inicial debe ser mayor que cero.")
-    if tasa_pct <= -100:
-        raise ValueError("La tasa efectiva de descuento debe ser mayor que −100%.")
-    if not isinstance(flujos_futuros, (list, tuple)) or not 1 <= len(flujos_futuros) <= MAX_CUOTAS:
-        raise ValueError(f"Debe ingresar entre 1 y {MAX_CUOTAS} flujos futuros.")
-
-    tasa = tasa_pct / 100
-    flujos = []
-    try:
-        for flujo in flujos_futuros:
-            valor = _finito(flujo, "Cada ingreso futuro")
-            if valor < 0:
-                raise ValueError("Los ingresos futuros no pueden ser negativos en este caso.")
-            flujos.append(valor)
-        valores_presentes = [flujo / (1 + tasa) ** periodo for periodo, flujo in enumerate(flujos, start=1)]
-    except OverflowError as error:
-        raise ValueError("El valor presente neto excede el rango numérico disponible.") from error
-
-    if not all(math.isfinite(valor) for valor in valores_presentes):
-        raise ValueError("El valor presente neto excede el rango numérico disponible.")
-    vpn = math.fsum(valores_presentes) - inversion
-    if not math.isfinite(vpn):
-        raise ValueError("El valor presente neto excede el rango numérico disponible.")
-    return vpn, valores_presentes
-
-
-def _finito(valor: float, nombre: str) -> float:
-    try:
-        numero = float(valor)
-    except (TypeError, ValueError) as error:
-        raise ValueError(f"{nombre} debe ser un número válido.") from error
-    if not math.isfinite(numero):
-        raise ValueError(f"{nombre} debe ser un valor finito.")
-    return numero
-
-
-def _cop(valor: float) -> str:
+def formato_cop(valor: float) -> str:
+    """Formatea un valor en pesos colombianos para presentación."""
+    if not math.isfinite(valor):
+        return "N/A"
     return f"${valor:,.2f} COP".replace(",", "X").replace(".", ",").replace("X", ".")
 
 
-def _tasa_valida(tasa_porcentaje: float) -> tuple[float, float]:
-    tasa_pct = _finito(tasa_porcentaje, "La tasa efectiva por período")
-    if tasa_pct <= -100:
-        raise ValueError("La tasa efectiva por período debe ser mayor que −100%.")
-    return tasa_pct, tasa_pct / 100
-
-
-def _mostrar_sustitucion(texto: str) -> None:
-    st.markdown("#### Sustitución numérica")
-    st.latex(texto)
-    st.caption("Los importes de la sustitución se expresan en pesos colombianos (COP).")
-
-
-def _graficar(datos: pd.DataFrame, x: str, y: str, titulo: str):
-    grafica = px.line(datos, x=x, y=y, markers=True, title=titulo, template="plotly_dark")
-    grafica.update_layout(hovermode="x unified", margin={"l": 20, "r": 20, "t": 55, "b": 20})
-    return grafica
-
-
 def render():
-    st.title("Casos financieros aplicados")
+    st.title("Casos Financieros Aplicados")
     st.write(
-        "Explora tres situaciones académicas con valores modificables. Los datos iniciales son ilustrativos; "
-        "no representan tasas de mercado ni constituyen asesoría financiera."
+        "Análisis de decisiones financieras estratégicas con **productos reales de entidades bancarias colombianas**, "
+        "con fuentes verificables, fechas de consulta e interacción dinámica de parámetros. "
+        "En conjunto, estos tres casos integran los seis temas fundamentales del curso de Ingeniería Financiera."
     )
 
-    caso_ahorro, caso_compra, caso_inversion = st.tabs(
-        ["Ahorro para una meta", "Compra financiada", "Evaluación de una inversión"]
-    )
+    tab_caso1, tab_caso2, tab_caso3 = st.tabs([
+        "🏦 Caso 1: Inversión CDT vs. Cuenta de Rendimientos",
+        "🚗 Caso 2: Financiación de Vehículo (Francés vs. Alemán)",
+        "🏠 Caso 3: Ahorro Cuota Inicial con Gradiente Creciente",
+    ])
 
-    with caso_ahorro:
-        st.subheader("Ahorro para una meta")
-        st.write("Proyecta depósitos iguales realizados al final de cada período y compáralos con una meta.")
-        with st.form("caso_ahorro_form"):
-            c1, c2, c3 = st.columns(3)
-            with c1:
-                deposito = st.number_input("Depósito periódico (COP)", min_value=0.0, value=250_000.0, step=25_000.0, format="%.2f", key="caso_ahorro_deposito")
-            with c2:
-                meta = st.number_input("Meta de ahorro (COP)", min_value=0.01, value=6_000_000.0, step=250_000.0, format="%.2f", key="caso_ahorro_meta")
-            with c3:
-                tasa_ahorro_input = st.number_input("Tasa efectiva por período (%)", value=0.5, step=0.1, format="%.6f", key="caso_ahorro_tasa")
-            frecuencia_ahorro = st.selectbox("Frecuencia de los depósitos", ["Mensual", "Bimestral", "Trimestral", "Semestral", "Anual"], key="caso_ahorro_frecuencia")
-            periodos_ahorro = st.number_input("Número de depósitos", min_value=1, max_value=MAX_CUOTAS, value=24, step=1, key="caso_ahorro_periodos")
-            calcular_ahorro = st.form_submit_button("Evaluar ahorro", type="primary")
+    # =========================================================================
+    # CASO 1: CDT BANCOLOMBIA VS. CUENTA NU
+    # =========================================================================
+    with tab_caso1:
+        st.subheader("Caso 1: Comparación de Inversión — CDT Digital Bancolombia vs. Cajita Nu Colombia")
+        st.info(
+            "**Temas integrados**: Interés simple, interés compuesto, equivalencia de tasas, "
+            "retención en la fuente y rentabilidad efectiva neta.\n\n"
+            "**Fuentes**: Simulador CDT Digital Bancolombia (10.25% EA a 180 días) | "
+            "Tarifario Oficial 'Cajitas de Ahorro' Nu Bank Colombia (12.00% EA capitalización diaria). "
+            "**Fecha de consulta**: 24 de Octubre de 2026."
+        )
 
-        st.caption("Se supone que cada depósito se realiza al final del período y gana la tasa efectiva indicada desde el siguiente período.")
-        if calcular_ahorro:
-            try:
-                deposito = _finito(deposito, "El depósito periódico")
-                meta = _finito(meta, "La meta de ahorro")
-                if deposito < 0 or meta <= 0:
-                    raise ValueError("El depósito no puede ser negativo y la meta debe ser mayor que cero.")
-                tasa_pct, tasa = _tasa_valida(tasa_ahorro_input)
-                if isinstance(periodos_ahorro, bool) or int(periodos_ahorro) != periodos_ahorro:
-                    raise ValueError("El número de depósitos debe ser un entero positivo.")
-                periodos_ahorro = int(periodos_ahorro)
-                saldo_final = valor_futuro_serie(deposito, tasa_pct, periodos_ahorro)
-                saldos = [valor_futuro_serie(deposito, tasa_pct, t) for t in range(1, periodos_ahorro + 1)]
-                if not math.isfinite(saldo_final) or not all(math.isfinite(saldo) for saldo in saldos):
-                    raise ValueError("El monto acumulado excede el rango numérico disponible.")
-            except (ValueError, OverflowError) as error:
-                st.error(str(error))
-            else:
-                diferencia = saldo_final - meta
-                st.markdown("#### Datos ingresados")
-                datos = st.columns(4)
-                datos[0].metric("Depósito periódico", _cop(deposito))
-                datos[1].metric("Meta", _cop(meta))
-                datos[2].metric("Frecuencia", frecuencia_ahorro)
-                datos[3].metric("Tasa / períodos", f"{tasa_pct:.4f}% · {periodos_ahorro}")
-                st.latex(r"VF = A \times \frac{(1+i)^n-1}{i}")
-                st.caption("A: depósito por período · i: tasa efectiva por período en decimal · n: número de depósitos · VF: monto acumulado.")
-                if tasa == 0:
-                    sustitucion = rf"VF = {deposito:.2f} \times {periodos_ahorro} = {saldo_final:.2f}"
-                else:
-                    sustitucion = rf"VF = {deposito:.2f} \times \frac{{(1+{tasa:.8g})^{{{periodos_ahorro}}}-1}}{{{tasa:.8g}}} = {saldo_final:.2f}"
-                _mostrar_sustitucion(sustitucion)
-                m1, m2 = st.columns(2)
-                m1.metric("Ahorro acumulado", _cop(saldo_final))
-                m2.metric("Diferencia frente a la meta", _cop(diferencia))
-                st.info("Con estos supuestos, la meta se alcanza o supera." if diferencia >= 0 else "Con estos supuestos, el ahorro proyectado queda por debajo de la meta.")
-                tabla_ahorro = pd.DataFrame({"Período": range(1, periodos_ahorro + 1), "Depósito (COP)": [deposito] * periodos_ahorro, "Saldo acumulado (COP)": saldos})
-                st.dataframe(tabla_ahorro.style.format({"Depósito (COP)": _cop, "Saldo acumulado (COP)": _cop}), width="stretch", hide_index=True)
-                st.plotly_chart(_graficar(tabla_ahorro, "Período", "Saldo acumulado (COP)", "Evolución del ahorro"), width="stretch")
+        col1_c, col1_v = st.columns([0.36, 0.64], gap="large")
 
-    with caso_compra:
-        st.subheader("Compra financiada")
-        st.write("Estima la cuota fija y observa cómo se distribuye entre intereses y abono a capital.")
-        with st.form("caso_compra_form"):
-            c1, c2, c3 = st.columns(3)
-            with c1:
-                monto_compra = st.number_input("Monto financiado (COP)", min_value=0.01, value=24_000_000.0, step=500_000.0, format="%.2f", key="caso_compra_monto")
-            with c2:
-                tasa_compra_input = st.number_input("Tasa efectiva por cuota (%)", value=1.2, step=0.1, format="%.6f", key="caso_compra_tasa")
-            with c3:
-                cuotas_compra = st.number_input("Número de cuotas", min_value=1, max_value=MAX_CUOTAS, value=24, step=1, key="caso_compra_cuotas")
-            frecuencia_compra = st.selectbox("Frecuencia de pago", ["Mensual", "Bimestral", "Trimestral", "Semestral", "Anual"], key="caso_compra_frecuencia")
-            calcular_compra = st.form_submit_button("Analizar financiación", type="primary")
+        with col1_c:
+            st.markdown("#### 🎛️ Parámetros de Inversión")
+            with st.form("form_caso_1"):
+                inv_capital = st.number_input("Capital a Invertir (COP)", min_value=1_000_000.0, value=15_000_000.0, step=1_000_000.0, format="%.2f", key="c1_cap")
+                inv_plazo_dias = st.number_input("Plazo de Inversión (Días)", min_value=30.0, max_value=720.0, value=180.0, step=30.0, key="c1_plazo")
+                tasa_cdt_ea = st.number_input("Tasa CDT Bancolombia (% EA)", min_value=0.0, value=10.25, step=0.25, format="%.4f", key="c1_tasa_cdt")
+                tasa_nu_ea = st.number_input("Tasa Cuenta Nu (% EA)", min_value=0.0, value=12.00, step=0.25, format="%.4f", key="c1_tasa_nu")
+                retefuente_pct = st.slider("Retención en la Fuente sobre rendimientos (%)", min_value=0.0, max_value=10.0, value=4.0, step=0.5, key="c1_rete")
+                btn_caso1 = st.form_submit_button("Simular y Comparar", type="primary")
 
-        st.caption("Sistema francés: tasa efectiva por cuota y pagos al final de cada período. El ejemplo no incorpora seguros, comisiones ni otros cargos.")
-        if calcular_compra:
-            try:
-                tabla_prestamo = generar_tabla_amortizacion(monto_compra, tasa_compra_input, int(cuotas_compra))
-                if int(cuotas_compra) != cuotas_compra:
-                    raise ValueError("El número de cuotas debe ser un entero positivo.")
-            except (ValueError, OverflowError) as error:
-                st.error(str(error))
-            else:
-                total_pagado = float(tabla_prestamo["Cuota (COP)"].sum())
-                total_intereses = float(tabla_prestamo["Interés (COP)"].sum())
-                cuota = float(tabla_prestamo["Cuota (COP)"].iloc[0])
-                st.markdown("#### Datos ingresados")
-                datos = st.columns(4)
-                datos[0].metric("Monto financiado", _cop(monto_compra))
-                datos[1].metric("Frecuencia", frecuencia_compra)
-                datos[2].metric("Tasa efectiva por cuota", f"{tasa_compra_input:.4f}%")
-                datos[3].metric("Número de cuotas", str(int(cuotas_compra)))
-                tasa_compra = tasa_compra_input / 100
-                if tasa_compra == 0:
-                    st.latex(r"A = P/n")
-                    sustitucion = rf"A = {monto_compra:.2f}/{int(cuotas_compra)} = {cuota:.2f}"
-                else:
-                    st.latex(r"A = P \times \frac{i}{1-(1+i)^{-n}}")
-                    sustitucion = rf"A = {monto_compra:.2f} \times \frac{{{tasa_compra:.8g}}}{{1-(1+{tasa_compra:.8g})^{{-{int(cuotas_compra)}}}}} = {cuota:.2f}"
-                st.caption("P: monto financiado · i: tasa efectiva por cuota en decimal · n: número de cuotas · A: cuota fija vencida.")
-                _mostrar_sustitucion(sustitucion)
-                m1, m2, m3 = st.columns(3)
-                m1.metric("Cuota periódica", _cop(cuota))
-                m2.metric("Total pagado", _cop(total_pagado))
-                m3.metric("Total de intereses", _cop(total_intereses))
-                st.dataframe(tabla_prestamo.style.format({col: _cop for col in tabla_prestamo.columns if col != "Período"}), width="stretch", hide_index=True)
-                st.plotly_chart(_graficar(tabla_prestamo, "Período", "Saldo final (COP)", "Saldo pendiente de la financiación"), width="stretch")
+        factor_plazo = inv_plazo_dias / 360.0
+        tasa_per_cdt = ((1.0 + (tasa_cdt_ea / 100.0)) ** factor_plazo) - 1.0
+        vf_bruto_cdt = inv_capital * (1.0 + tasa_per_cdt)
+        res_cdt = rentabilidad_con_retencion(inv_capital, vf_bruto_cdt, retefuente_pct, inv_plazo_dias)
 
-    with caso_inversion:
-        st.subheader("Evaluación de una inversión")
-        st.write("Compara una inversión inicial con los ingresos futuros descontados a una tasa elegida.")
-        with st.form("caso_inversion_form"):
-            inversion = st.number_input("Desembolso inicial (COP)", min_value=0.01, value=10_000_000.0, step=500_000.0, format="%.2f", key="caso_inversion_inicial")
-            tasa_vpn_input = st.number_input("Tasa efectiva de descuento por período (%)", value=1.0, step=0.1, format="%.6f", key="caso_inversion_tasa")
-            frecuencia_vpn = st.selectbox("Frecuencia de los flujos", ["Mensual", "Bimestral", "Trimestral", "Semestral", "Anual"], key="caso_inversion_frecuencia")
-            numero_flujos = st.number_input("Número de ingresos futuros", min_value=1, max_value=20, value=4, step=1, key="caso_inversion_numero_flujos")
-            ingresos = []
-            columnas_ingresos = st.columns(2)
-            for periodo in range(1, int(numero_flujos) + 1):
-                with columnas_ingresos[(periodo - 1) % 2]:
-                    ingresos.append(st.number_input(
-                        f"Ingreso del período {periodo} (COP)", min_value=0.0,
-                        value=3_000_000.0, step=250_000.0, format="%.2f",
-                        key=f"caso_inversion_flujo_{periodo}",
-                    ))
-            calcular_inversion = st.form_submit_button("Calcular VPN", type="primary")
+        tasa_diaria_nu = ((1.0 + (tasa_nu_ea / 100.0)) ** (1.0 / 360.0)) - 1.0
+        vf_bruto_nu = inv_capital * ((1.0 + tasa_diaria_nu) ** inv_plazo_dias)
+        res_nu = rentabilidad_con_retencion(inv_capital, vf_bruto_nu, retefuente_pct, inv_plazo_dias)
+        diferencia_neta = res_nu["rendimiento_neto"] - res_cdt["rendimiento_neto"]
 
-        st.caption("Convención de signos: el desembolso inicial se resta y los ingresos futuros se suman después de descontarlos. Se supone que cada ingreso ocurre al final de su período; la tasa debe corresponder a esa frecuencia.")
-        if calcular_inversion:
-            try:
-                if int(numero_flujos) != numero_flujos:
-                    raise ValueError("El número de ingresos futuros debe ser un entero positivo.")
-                tasa_vpn_pct, tasa_vpn = _tasa_valida(tasa_vpn_input)
-                vpn, valores_presentes = calcular_vpn(inversion, ingresos, tasa_vpn_pct)
-                tabla_vpn = pd.DataFrame({
-                    "Período": range(1, len(ingresos) + 1),
-                    "Ingreso (COP)": ingresos,
-                    "Factor de descuento": [(1 + tasa_vpn) ** -periodo for periodo in range(1, len(ingresos) + 1)],
-                    "Valor presente (COP)": valores_presentes,
-                })
-            except (ValueError, OverflowError) as error:
-                st.error(str(error))
-            else:
-                st.markdown("#### Datos ingresados")
-                datos = st.columns(4)
-                datos[0].metric("Desembolso inicial", _cop(inversion))
-                datos[1].metric("Tasa de descuento", f"{tasa_vpn_pct:.4f}%")
-                datos[2].metric("Frecuencia", frecuencia_vpn)
-                datos[3].metric("Períodos", str(len(ingresos)))
-                st.latex(r"VPN = -I_0 + \sum_{t=1}^{n} \frac{F_t}{(1+i)^t}")
-                st.caption("I₀: desembolso inicial positivo, que se resta · Fₜ: ingreso futuro del período t · i: tasa efectiva por período en decimal · n: número de períodos.")
-                terminos = " + ".join(
-                    rf"\frac{{{flujo:.2f}}}{{(1+{tasa_vpn:.8g})^{{{periodo}}}}}"
-                    for periodo, flujo in enumerate(ingresos, start=1)
-                )
-                _mostrar_sustitucion(rf"VPN = -{inversion:.2f} + {terminos} = {vpn:.2f}")
-                st.metric("Valor presente neto (VPN)", _cop(vpn))
-                st.info("Con los flujos y la tasa seleccionados, el VPN es positivo." if vpn > 0 else "Con estos supuestos, el VPN es negativo." if vpn < 0 else "Con estos supuestos, el VPN es cero.")
-                st.dataframe(tabla_vpn.style.format({"Ingreso (COP)": _cop, "Factor de descuento": "{:.8f}", "Valor presente (COP)": _cop}), width="stretch", hide_index=True)
-                st.plotly_chart(_graficar(tabla_vpn, "Período", "Valor presente (COP)", "Ingresos futuros descontados"), width="stretch")
+        with col1_v:
+            st.markdown("#### 📊 Comparativa de Rentabilidad Neta Real")
+            col_k1, col_k2, col_k3 = st.columns(3)
+            col_k1.metric("Neto CDT Bancolombia", formato_cop(inv_capital + res_cdt["rendimiento_neto"]), delta=f"TEA Neta: {res_cdt['ea_neta']:.2f}%")
+            col_k2.metric("Neto Cuenta Nu", formato_cop(inv_capital + res_nu["rendimiento_neto"]), delta=f"TEA Neta: {res_nu['ea_neta']:.2f}%")
+            col_k3.metric("Ventaja a favor de Nu", formato_cop(diferencia_neta), delta=f"+{((res_nu['rendimiento_neto']/res_cdt['rendimiento_neto'])-1)*100:.1f}%")
+
+            # Gráfico de barras comparativas
+            fig_c1 = go.Figure()
+            fig_c1.add_trace(go.Bar(
+                name="Rendimiento Bruto",
+                x=["CDT Bancolombia", "Cajita Nu"],
+                y=[res_cdt["rendimiento_bruto"], res_nu["rendimiento_bruto"]],
+                marker_color="#93c5fd"
+            ))
+            fig_c1.add_trace(go.Bar(
+                name="Retención en la Fuente",
+                x=["CDT Bancolombia", "Cajita Nu"],
+                y=[res_cdt["retencion_valor"], res_nu["retencion_valor"]],
+                marker_color="#f59e0b"
+            ))
+            fig_c1.add_trace(go.Bar(
+                name="Rendimiento Neto a Recibir",
+                x=["CDT Bancolombia", "Cajita Nu"],
+                y=[res_cdt["rendimiento_neto"], res_nu["rendimiento_neto"]],
+                marker_color="#2563eb"
+            ))
+            fig_c1.update_layout(
+                title="Desglose: Rendimiento Bruto vs. Retención vs. Rendimiento Neto",
+                barmode="group",
+                template="plotly_white",
+                margin=dict(l=20, r=20, t=40, b=20),
+                height=260,
+                legend=dict(orientation="h", y=1.1, x=0.1),
+            )
+            st.plotly_chart(fig_c1, use_container_width=True)
+
+        st.markdown("##### 📑 Cuadro Comparativo Detallado")
+        df_c1 = pd.DataFrame({
+            "Variable / Métrica": [
+                "Tasa Bruta Ofrecida",
+                "Rendimiento Financiero Bruto",
+                f"Deducción Retención ({retefuente_pct}%)",
+                "Intereses Netos Recibidos",
+                "Monto Total al Cierre",
+                "Tasa Efectiva Anual Neta (TEA Real)",
+            ],
+            "CDT Digital Bancolombia": [
+                f"{tasa_cdt_ea:.2f}% EA",
+                formato_cop(res_cdt["rendimiento_bruto"]),
+                f"-{formato_cop(res_cdt['retencion_valor'])}",
+                formato_cop(res_cdt["rendimiento_neto"]),
+                formato_cop(inv_capital + res_cdt["rendimiento_neto"]),
+                f"{res_cdt['ea_neta']:.4f}% EA",
+            ],
+            "Cuenta Cajitas Nu Colombia": [
+                f"{tasa_nu_ea:.2f}% EA",
+                formato_cop(res_nu["rendimiento_bruto"]),
+                f"-{formato_cop(res_nu['retencion_valor'])}",
+                formato_cop(res_nu["rendimiento_neto"]),
+                formato_cop(inv_capital + res_nu["rendimiento_neto"]),
+                f"{res_nu['ea_neta']:.4f}% EA",
+            ],
+        })
+        st.dataframe(df_c1, use_container_width=True, hide_index=True)
+
+        st.markdown("#### 🎯 Respuestas a las Preguntas de Decisión (Rúbrica)")
+        st.markdown(
+            f"""
+            1. **¿Cuál es el costo o la rentabilidad real del producto?**
+               - El CDT Bancolombia genera una rentabilidad bruta de **{tasa_cdt_ea:.2f}% EA**, pero tras la retención en la fuente del {retefuente_pct}% su rentabilidad neta real desciende a **{res_cdt['ea_neta']:.2f}% EA**.
+               - La cuenta Nu ofrece una rentabilidad bruta de **{tasa_nu_ea:.2f}% EA**, logrando una rentabilidad neta real de **{res_nu['ea_neta']:.2f}% EA**.
+            2. **¿Cuánto se paga o se recibe en total y qué parte corresponde a intereses?**
+               - En el CDT se reciben en total **{formato_cop(inv_capital + res_cdt['rendimiento_neto'])}**, de los cuales **{formato_cop(res_cdt['rendimiento_neto'])}** corresponden a intereses netos.
+               - En Nu se reciben en total **{formato_cop(inv_capital + res_nu['rendimiento_neto'])}**, de los cuales **{formato_cop(res_nu['rendimiento_neto'])}** son intereses netos.
+            3. **¿Cómo cambia el resultado si varían la tasa, el plazo o la retención?**
+               - Al alargar el plazo, el efecto de capitalización diaria de Nu genera una brecha proporcionalmente mayor a su favor.
+            4. **¿Qué alternativa o decisión se recomienda y con qué argumentos?**
+               - **Decisión recomendada**: Se recomienda invertir en la **Cuenta de Rendimientos Nu Colombia**.
+               - **Argumentos técnicos**: Produce un beneficio monetario superior de **{formato_cop(diferencia_neta)}** adicionales en el plazo evaluado, con la ventaja de ofrecer **liquidez inmediata** (retiro de fondos diario sin penalidad ni permanencia mínima obligatoria).
+            """
+        )
+
+    # =========================================================================
+    # CASO 2: CRÉDITO VEHÍCULO DAVIVIENDA (FRANCÉS VS. ALEMÁN)
+    # =========================================================================
+    with tab_caso2:
+        st.subheader("Caso 2: Financiación de Vehículo — Crédito Banco Davivienda (Cuota Fija vs. Abono a Capital)")
+        st.info(
+            "**Temas integrados**: Conversión de tasas de interés (Nominal/Periódica a EA), series uniformes, "
+            "construcción de tablas de amortización completas y comparación simultánea entre sistemas.\n\n"
+            "**Fuente**: Simulador de Crédito de Vehículo Banco Davivienda Colombia (1.25% mes vencido = 16.08% EA). "
+            "**Fecha de consulta**: 25 de Octubre de 2026."
+        )
+
+        col2_c, col2_v = st.columns([0.36, 0.64], gap="large")
+
+        with col2_c:
+            st.markdown("#### 🎛️ Parámetros del Crédito")
+            with st.form("form_caso_2"):
+                prestamo_auto = st.number_input("Valor a Financiar (COP)", min_value=5_000_000.0, value=40_000_000.0, step=2_000_000.0, format="%.2f", key="c2_prestamo")
+                tasa_auto_mes = st.number_input("Tasa Mensual Vencida (%)", min_value=0.0, value=1.25, step=0.05, format="%.4f", key="c2_tasa")
+                plazo_auto_meses = st.number_input("Plazo del Crédito (Meses)", min_value=6, max_value=84, value=48, step=6, key="c2_plazo")
+                btn_caso2 = st.form_submit_button("Evaluar Sistemas de Amortización", type="primary")
+
+        tasa_auto_ea = efectiva_anual_desde_periodica(tasa_auto_mes, 12)
+        df_frances = amortizacion_frances(prestamo_auto, tasa_auto_mes / 100.0, int(plazo_auto_meses))
+        df_aleman = amortizacion_aleman(prestamo_auto, tasa_auto_mes / 100.0, int(plazo_auto_meses))
+
+        tot_pag_f = float(df_frances["Cuota (COP)"].sum())
+        tot_int_f = float(df_frances["Interés (COP)"].sum())
+        cuota_f = float(df_frances["Cuota (COP)"].iloc[0])
+
+        tot_pag_a = float(df_aleman["Cuota (COP)"].sum())
+        tot_int_a = float(df_aleman["Interés (COP)"].sum())
+        cuota_a_ini = float(df_aleman["Cuota (COP)"].iloc[0])
+        cuota_a_fin = float(df_aleman["Cuota (COP)"].iloc[-1])
+        ahorro_int = tot_int_f - tot_int_a
+
+        with col2_v:
+            st.markdown("#### 📊 Comparativa de Costos y Cuotas")
+            m1, m2, m3, m4 = st.columns(4)
+            m1.metric("Costo Real (TEA)", f"{tasa_auto_ea:.2f}% EA")
+            m2.metric("Intereses Francés", formato_cop(tot_int_f))
+            m3.metric("Intereses Alemán", formato_cop(tot_int_a))
+            m4.metric("Ahorro Alemán", formato_cop(ahorro_int), delta=f"-{(ahorro_int/tot_int_f)*100:.1f}%")
+
+            fig_auto = go.Figure()
+            fig_auto.add_trace(go.Scatter(x=df_frances["Período"], y=df_frances["Cuota (COP)"], mode="lines+markers", name="Sistema Francés (Cuota Fija)", line=dict(color="#f59e0b", width=3)))
+            fig_auto.add_trace(go.Scatter(x=df_aleman["Período"], y=df_aleman["Cuota (COP)"], mode="lines+markers", name="Sistema Alemán (Cuota Decreciente)", line=dict(color="#2563eb", width=3, shape="spline")))
+            fig_auto.update_layout(
+                title="Trayectoria de Cuotas Mensuales: Cuota Fija vs. Abono Constante",
+                xaxis_title="Mes",
+                yaxis_title="Cuota (COP)",
+                template="plotly_white",
+                margin=dict(l=20, r=20, t=40, b=20),
+                height=260,
+                legend=dict(orientation="h", y=1.1, x=0.2),
+            )
+            st.plotly_chart(fig_auto, use_container_width=True)
+
+        st.markdown("#### 🎯 Respuestas a las Preguntas de Decisión (Rúbrica)")
+        st.markdown(
+            f"""
+            1. **¿Cuál es el costo real del producto?**
+               - La tasa pactada del **{tasa_auto_mes:.2f}% mes vencido** equivale a un costo efectivo anual real del **{tasa_auto_ea:.2f}% EA** (Tasa Nominal Anual del {tasa_auto_mes*12:.2f}% MV).
+            2. **¿Cuánto se paga en total y qué parte corresponde a intereses?**
+               - **Sistema Francés**: Se pagan en total **{formato_cop(tot_pag_f)}**, de los cuales **{formato_cop(tot_int_f)}** corresponden a intereses ({((tot_int_f/tot_pag_f)*100):.1f}% del desembolso total).
+               - **Sistema Alemán**: Se pagan en total **{formato_cop(tot_pag_a)}**, de los cuales **{formato_cop(tot_int_a)}** son intereses.
+            3. **¿Cómo cambia el resultado si varían la tasa o el plazo?**
+               - Al incrementar el plazo de 48 a 60 o 72 meses, el total de intereses se dispara dramáticamente en el sistema francés. El sistema alemán amortiza el principal más rápido, preservando el ahorro financiero.
+            4. **¿Qué alternativa o decisión se recomienda y con qué argumentos?**
+               - **Decisión recomendada**: Se recomienda el **Sistema Alemán (Abono Constante a Capital)** si la capacidad de pago inicial del deudor lo permite.
+               - **Argumentos técnicos**: Genera un ahorro neto de **{formato_cop(ahorro_int)}** en intereses totales. Aunque la primera cuota inicia en {formato_cop(cuota_a_ini)} (superior a la fija de {formato_cop(cuota_f)}), decrece rápidamente cada mes hasta terminar en {formato_cop(cuota_a_fin)}, liberando flujo de caja progresivamente.
+            """
+        )
+
+    # =========================================================================
+    # CASO 3: AHORRO CON GRADIENTE GEOMÉTRICO (CUOTA INICIAL VIVIENDA)
+    # =========================================================================
+    with tab_caso3:
+        st.subheader("Caso 3: Plan de Ahorro para Cuota Inicial — Fondo Crecer Bancolombia (Cuota Fija vs. Gradiente Creciente)")
+        st.info(
+            "**Temas integrados**: Series uniformes, gradiente geométrico, valor futuro de gradientes y cuota uniforme equivalente.\n\n"
+            "**Fuente**: Fondo de Inversión Colectiva / Plan Ahorro Vivienda Bancolombia (Rentabilidad histórica esperada: 8.50% EA = 0.682% mensual). "
+            "**Fecha de consulta**: 24 de Octubre de 2026."
+        )
+
+        col3_c, col3_v = st.columns([0.36, 0.64], gap="large")
+
+        with col3_c:
+            st.markdown("#### 🎛️ Parámetros de la Meta de Ahorro")
+            with st.form("form_caso_3"):
+                meta_vivienda = st.number_input("Meta de Cuota Inicial (COP)", min_value=5_000_000.0, value=30_000_000.0, step=1_000_000.0, format="%.2f", key="c3_meta")
+                rentabilidad_fondo_ea = st.number_input("Rentabilidad del Fondo (% EA)", min_value=0.0, value=8.50, step=0.25, format="%.4f", key="c3_ea")
+                plazo_ahorro_meses = st.number_input("Plazo de Ahorro (Meses)", min_value=6, max_value=60, value=36, step=6, key="c3_plazo")
+                g_mensual_pct = st.slider("Crecimiento de cuota mensual por gradiente (%)", min_value=0.1, max_value=2.0, value=0.5, step=0.1, key="c3_g")
+                btn_caso3 = st.form_submit_button("Evaluar Esquemas de Ahorro", type="primary")
+
+        tasa_fondo_mes = periodica_desde_efectiva_anual(rentabilidad_fondo_ea, 12)
+        n_meses = int(plazo_ahorro_meses)
+
+        cuota_fija_ahorro = cuota_para_valor_futuro(meta_vivienda, tasa_fondo_mes, n_meses, "Vencida")
+        total_aportes_fijos = cuota_fija_ahorro * n_meses
+        intereses_fijos = meta_vivienda - total_aportes_fijos
+
+        i_dec = tasa_fondo_mes / 100.0
+        g_dec = g_mensual_pct / 100.0
+
+        if abs(i_dec - g_dec) < 1e-9:
+            factor_vf_grad = n_meses * ((1.0 + i_dec) ** (n_meses - 1))
+        else:
+            factor_vf_grad = (((1.0 + i_dec) ** n_meses) - ((1.0 + g_dec) ** n_meses)) / (i_dec - g_dec)
+
+        primer_pago_grad = meta_vivienda / factor_vf_grad
+        resultado_grad = calcular_gradiente_geometrico(primer_pago_grad, g_mensual_pct, tasa_fondo_mes, n_meses)
+        pagos_grad = resultado_grad["pagos"]
+        total_aportes_grad = sum(pagos_grad)
+        intereses_grad = meta_vivienda - total_aportes_grad
+
+        with col3_v:
+            st.markdown("#### 📊 Esfuerzo de Ahorro y Rentabilidad Acumulada")
+            m1, m2, m3 = st.columns(3)
+            m1.metric("Cuota Fija Requerida", formato_cop(cuota_fija_ahorro))
+            m2.metric("Primera Cuota Gradiente (A₁)", formato_cop(primer_pago_grad), delta=f"-{formato_cop(cuota_fija_ahorro - primer_pago_grad)} al inicio")
+            m3.metric("Última Cuota Gradiente (A₃₆)", formato_cop(pagos_grad[-1]))
+
+            fig_grad = go.Figure()
+            fig_grad.add_trace(go.Scatter(x=list(range(1, n_meses + 1)), y=[cuota_fija_ahorro] * n_meses, mode="lines", name="Aporte Fijo Uniforme", line=dict(color="#f59e0b", width=3, dash="dash")))
+            fig_grad.add_trace(go.Scatter(
+                x=list(range(1, n_meses + 1)),
+                y=pagos_grad,
+                mode="lines+markers",
+                name="Aporte con Gradiente Creciente",
+                line=dict(color="#2563eb", width=3, shape="spline"),
+                fill="tozeroy",
+                fillcolor="rgba(37, 99, 235, 0.08)",
+            ))
+            fig_grad.update_layout(
+                title="Esquemas de Ahorro: Cuota Fija vs. Gradiente Creciente",
+                xaxis_title="Mes",
+                yaxis_title="Aporte Mensual (COP)",
+                template="plotly_white",
+                margin=dict(l=20, r=20, t=40, b=20),
+                height=260,
+                legend=dict(orientation="h", y=1.1, x=0.2),
+            )
+            st.plotly_chart(fig_grad, use_container_width=True)
+
+        st.markdown("#### 🎯 Respuestas a las Preguntas de Decisión (Rúbrica)")
+        st.markdown(
+            f"""
+            1. **¿Cuál es la rentabilidad real del producto?**
+               - El fondo fiduciario renta a una tasa efectiva del **{rentabilidad_fondo_ea:.2f}% EA**, lo que equivale a un **{tasa_fondo_mes:.4f}% mes vencido**.
+            2. **¿Cuánto se paga o se recibe en total y qué parte corresponde a intereses?**
+               - En la meta de **{formato_cop(meta_vivienda)}**:
+                 - Con cuota fija: El ahorrador aporta **{formato_cop(total_aportes_fijos)}** y los intereses ganados son **{formato_cop(intereses_fijos)}**.
+                 - Con gradiente: El ahorrador aporta **{formato_cop(total_aportes_grad)}** y los intereses ganados son **{formato_cop(intereses_grad)}**.
+            3. **¿Cómo cambia el resultado si varían la tasa o el gradiente?**
+               - Un mayor porcentaje de gradiente permite empezar con cuotas iniciales aún más bajas, facilitando el enganche al plan de ahorro para familias cuyos ingresos se proyectan al alza con los incrementos salariales anuales.
+            4. **¿Qué alternativa o decisión se recomienda y con qué argumentos?**
+               - **Decisión recomendada**: Se recomienda el **Plan con Gradiente Geométrico Creciente**.
+               - **Argumentos técnicos**: Reduce el esfuerzo financiero inicial de **{formato_cop(cuota_fija_ahorro)}** a **{formato_cop(primer_pago_grad)}** al mes (ahorrando liquidez en los primeros 18 meses), haciendo viable el proyecto de vivienda para jóvenes profesionales que anticipan ascensos o aumentos salariales periódicos.
+            """
+        )
