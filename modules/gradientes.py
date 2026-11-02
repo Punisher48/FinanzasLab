@@ -6,7 +6,10 @@ from plotly.subplots import make_subplots
 import streamlit as st
 
 from motor.formato import formato_cop
-from motor.gradientes import *  # noqa: F401,F403
+from motor.gradientes import (
+    calcular_gradiente_aritmetico,
+    calcular_gradiente_geometrico,
+)
 
 
 # ------------------ RENDER STREAMLIT ------------------
@@ -32,16 +35,14 @@ def render():
                 key="grad_tipo",
             )
 
-            with st.form("form_gradientes"):
-                primer_pago = st.number_input("Primer pago / cuota A₁ (COP)", min_value=0.0, value=1_000_000.0, step=100_000.0, format="%.2f")
-                if "Aritmético" in tipo_gradiente:
-                    variacion = st.number_input("Gradiente constante G (COP/período)", value=50_000.0, step=10_000.0, format="%.2f", help="Positivo para creciente, negativo para decreciente")
-                else:
-                    variacion = st.number_input("Tasa de crecimiento g (%/período)", value=3.0, step=0.5, format="%.4f", help="Positiva para creciente, negativa para decreciente")
+            primer_pago = st.number_input("Primer pago / cuota A₁ (COP)", min_value=0.0, value=1_000_000.0, step=100_000.0, format="%.2f")
+            if "Aritmético" in tipo_gradiente:
+                variacion = st.number_input("Gradiente constante G (COP/período)", value=50_000.0, step=10_000.0, format="%.2f", help="Positivo para creciente, negativo para decreciente")
+            else:
+                variacion = st.number_input("Tasa de crecimiento g (%/período)", value=3.0, step=0.5, format="%.4f", help="Positiva para creciente, negativa para decreciente")
 
-                tasa_desc = st.number_input("Tasa de descuento / interés i (%)", min_value=0.0, value=1.5, step=0.25, format="%.4f")
-                n_periodos = st.number_input("Número de períodos (n)", min_value=1, max_value=360, value=12, step=1)
-                btn_grad = st.form_submit_button("Recalcular Gradiente", type="primary")
+            tasa_desc = st.number_input("Tasa de descuento / interés i (%)", min_value=0.0, value=1.5, step=0.25, format="%.4f")
+            n_periodos = st.number_input("Número de períodos (n)", min_value=1, max_value=360, value=12, step=1)
 
         with col_view:
             st.markdown("#### 📊 Resultados de la Serie Gradiente")
@@ -126,15 +127,15 @@ def render():
                     """
                 )
 
+                st.markdown("##### 📋 Detalle de Pagos Período a Período")
+                df_most = df_grad.copy()
+                for c in ["Pago Cuota Pt (COP)", "Valor Presente del Pago", "Saldo Acumulado Futuro"]:
+                    df_most[c] = df_most[c].map(formato_cop)
+                df_most["Factor Descuento"] = df_most["Factor Descuento"].map(lambda x: f"{x:.6f}")
+                st.dataframe(df_most, use_container_width=True, hide_index=True)
+
             except Exception as e:
                 st.error(f"Error en el cálculo: {e}")
-
-        st.markdown("##### 📋 Detalle de Pagos Período a Período")
-        df_most = df_grad.copy()
-        for c in ["Pago Cuota Pt (COP)", "Valor Presente del Pago", "Saldo Acumulado Futuro"]:
-            df_most[c] = df_most[c].map(formato_cop)
-        df_most["Factor Descuento"] = df_most["Factor Descuento"].map(lambda x: f"{x:.6f}")
-        st.dataframe(df_most, use_container_width=True, hide_index=True)
 
     with tab_verif:
         st.subheader("Supuestos Técnicos y Verificación de Gradientes")

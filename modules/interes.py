@@ -4,8 +4,22 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from motor.formato import formato_cop
-from motor.interes import *  # noqa: F401,F403
+from motor.formato import formato_cop, variacion_pct
+from motor.interes import (
+    DIAS_POR_CONVENCION,
+    calcular_monto_interes_compuesto,
+    calcular_monto_interes_simple,
+    calcular_saldos_compuesto,
+    calcular_saldos_simple,
+    calcular_vp_interes_compuesto,
+    calcular_vp_interes_simple,
+    despejar_periodos_interes_compuesto,
+    despejar_tasa_interes_compuesto,
+    despejar_tasa_interes_simple,
+    despejar_tiempo_interes_simple,
+    evolucion_interes_simple,
+    tiempo_en_unidad_de_tasa,
+)
 
 
 # ------------------ RENDER STREAMLIT ------------------
@@ -35,125 +49,71 @@ def render():
                 [
                     "Valor Futuro (Monto final) e Interés",
                     "Valor Presente (Capital inicial)",
-                    "Tasa de interés periódica",
+                    "Tasa de interés",
                     "Plazo o tiempo transcurrido",
                 ],
                 key="simple_accion",
             )
-            convencion = st.selectbox(
-                "Convención de días",
-                ["Comercial (360 días)", "Exacto (365 días)"],
-                key="simple_convencion",
-            )
-            unidad_tiempo = st.selectbox(
-                "Unidad del plazo",
-                ["Años", "Meses", "Días"],
-                key="simple_unidad",
-            )
+            convencion = st.selectbox("Convención de días", list(DIAS_POR_CONVENCION), key="simple_convencion")
+            unidad_tiempo = st.selectbox("Unidad del plazo", ["Años", "Meses", "Días"], index=1, key="simple_unidad")
+            unidad_tasa = st.selectbox("La tasa se expresa por", ["Año", "Mes"], key="simple_unidad_tasa")
+            st.caption("La convención solo cambia el resultado cuando el plazo está en días: t = días / 360 o días / 365.")
 
-            with st.form("form_interes_simple"):
-                if accion_simple == "Valor Futuro (Monto final) e Interés":
-                    c_in = st.number_input("Capital inicial - VP (COP)", min_value=0.0, value=5_000_000.0, step=500_000.0, format="%.2f")
-                    tasa_in = st.number_input(f"Tasa de interés por {unidad_tiempo.lower()[:-1] if unidad_tiempo.endswith('s') else unidad_tiempo} (%)", min_value=0.0, value=2.0, step=0.25, format="%.4f")
-                    plazo_in = st.number_input(f"Plazo ({unidad_tiempo})", min_value=1.0, value=12.0, step=1.0, format="%.2f")
-                elif accion_simple == "Valor Presente (Capital inicial)":
-                    m_in = st.number_input("Valor Futuro objetivo - VF (COP)", min_value=0.0, value=6_200_000.0, step=500_000.0, format="%.2f")
-                    tasa_in = st.number_input(f"Tasa de interés por {unidad_tiempo.lower()[:-1] if unidad_tiempo.endswith('s') else unidad_tiempo} (%)", min_value=0.0, value=2.0, step=0.25, format="%.4f")
-                    plazo_in = st.number_input(f"Plazo ({unidad_tiempo})", min_value=1.0, value=12.0, step=1.0, format="%.2f")
-                elif accion_simple == "Tasa de interés periódica":
-                    c_in = st.number_input("Capital inicial - VP (COP)", min_value=0.0, value=5_000_000.0, step=500_000.0, format="%.2f")
-                    m_in = st.number_input("Valor Futuro final - VF (COP)", min_value=0.0, value=6_200_000.0, step=500_000.0, format="%.2f")
-                    plazo_in = st.number_input(f"Plazo ({unidad_tiempo})", min_value=1.0, value=12.0, step=1.0, format="%.2f")
-                else:
-                    c_in = st.number_input("Capital inicial - VP (COP)", min_value=0.0, value=5_000_000.0, step=500_000.0, format="%.2f")
-                    m_in = st.number_input("Valor Futuro final - VF (COP)", min_value=0.0, value=6_200_000.0, step=500_000.0, format="%.2f")
-                    tasa_in = st.number_input(f"Tasa de interés por {unidad_tiempo.lower()[:-1] if unidad_tiempo.endswith('s') else unidad_tiempo} (%)", min_value=0.001, value=2.0, step=0.25, format="%.4f")
-
-                btn_simple = st.form_submit_button("Recalcular Interés Simple", type="primary")
+            if accion_simple != "Valor Presente (Capital inicial)":
+                c_in = st.number_input("Capital inicial - VP (COP)", min_value=0.0, value=5_000_000.0, step=500_000.0, format="%.2f", key="simple_c")
+            if accion_simple != "Valor Futuro (Monto final) e Interés":
+                m_in = st.number_input("Valor Futuro - VF (COP)", min_value=0.0, value=6_200_000.0, step=500_000.0, format="%.2f", key="simple_m")
+            if accion_simple != "Tasa de interés":
+                tasa_in = st.number_input(f"Tasa de interés simple por {unidad_tasa.lower()} (%)", min_value=0.0, value=24.0, step=0.25, format="%.4f", key="simple_tasa")
+            if accion_simple != "Plazo o tiempo transcurrido":
+                plazo_in = st.number_input(f"Plazo ({unidad_tiempo.lower()})", min_value=0.01, value=12.0, step=1.0, format="%.2f", key="simple_plazo")
 
         with col_view:
             st.markdown("#### 📊 Resultados y Visualización en Vivo")
             try:
+                t_por_unidad = tiempo_en_unidad_de_tasa(1.0, unidad_tiempo, unidad_tasa, convencion)
                 if accion_simple == "Valor Futuro (Monto final) e Interés":
-                    interes_calc, monto_calc = calcular_monto_interes_simple(c_in, tasa_in, plazo_in)
+                    t = plazo_in * t_por_unidad
+                    interes_calc, m_in = calcular_monto_interes_simple(c_in, tasa_in, t)
                     m1, m2, m3 = st.columns(3)
                     m1.metric("Capital Inicial (C)", formato_cop(c_in))
                     m2.metric("Interés Total (I)", formato_cop(interes_calc))
-                    m3.metric("Monto Final (M)", formato_cop(monto_calc))
-
-                    # Gráfico de área sombreada con spline
-                    n_steps = int(max(1, min(int(plazo_in), 200)))
-                    saldos = [c_in * (1 + (tasa_in / 100.0) * p) for p in range(n_steps + 1)]
-                    df_s = pd.DataFrame({"Período": range(n_steps + 1), "Saldo Acumulado": saldos})
-
-                    fig_s = go.Figure()
-                    fig_s.add_trace(go.Scatter(
-                        x=df_s["Período"],
-                        y=df_s["Saldo Acumulado"],
-                        mode="lines+markers",
-                        name="Interés Simple",
-                        line=dict(color="#2563eb", width=3, shape="spline"),
-                        fill="tozeroy",
-                        fillcolor="rgba(37, 99, 235, 0.08)",
-                    ))
-                    fig_s.update_layout(
-                        title=f"Evolución del Valor Acumulado ({convencion})",
-                        xaxis_title=f"Período ({unidad_tiempo})",
-                        yaxis_title="Monto (COP)",
-                        template="plotly_white",
-                        margin=dict(l=20, r=20, t=40, b=20),
-                        height=290,
-                    )
-                    st.plotly_chart(fig_s, use_container_width=True)
-
-                    st.markdown("##### Sustento Matemático y Fórmulas")
-                    st.latex(
-                        rf"""
-                        \begin{{aligned}}
-                        M &= C \cdot (1 + i \cdot t) \\
-                        M &= {c_in:,.2f} \cdot (1 + {tasa_in/100:.6g} \cdot {plazo_in}) = {monto_calc:,.2f}\text{{ COP}}
-                        \end{{aligned}}
-                        """
-                    )
-                    st.latex(rf"I = C \cdot i \cdot t = {interes_calc:,.2f}\text{{ COP}}")
-
+                    m3.metric("Monto Final (M)", formato_cop(m_in))
+                    formula = rf"M = C (1 + i \cdot t) = {c_in:,.2f} \cdot (1 + {tasa_in/100:.6g} \cdot {t:.6g}) = {m_in:,.2f}\text{{ COP}}"
                 elif accion_simple == "Valor Presente (Capital inicial)":
-                    vp_calc, int_calc = calcular_vp_interes_simple(m_in, tasa_in, plazo_in)
+                    t = plazo_in * t_por_unidad
+                    c_in, interes_calc = calcular_vp_interes_simple(m_in, tasa_in, t)
                     m1, m2 = st.columns(2)
-                    m1.metric("Valor Presente Requerido (C)", formato_cop(vp_calc))
-                    m2.metric("Intereses a devengar", formato_cop(int_calc))
-                    st.latex(
-                        rf"""
-                        \begin{{aligned}}
-                        C &= \frac{{M}}{{1 + i \cdot t}} \\
-                        C &= \frac{{{m_in:,.2f}}}{{1 + ({tasa_in/100:.6g} \cdot {plazo_in})}} = {vp_calc:,.2f}\text{{ COP}}
-                        \end{{aligned}}
-                        """
-                    )
-
-                elif accion_simple == "Tasa de interés periódica":
-                    tasa_res = despejar_tasa_interes_simple(c_in, m_in, plazo_in)
-                    st.metric(f"Tasa Despejada por {unidad_tiempo.lower()[:-1]}", f"{tasa_res:.4f}%")
-                    st.latex(
-                        rf"""
-                        \begin{{aligned}}
-                        i &= \frac{{M - C}}{{C \cdot t}} \\
-                        i &= \frac{{{m_in:,.2f} - {c_in:,.2f}}}{{{c_in:,.2f} \cdot {plazo_in}}} = {tasa_res/100:.6g} \implies {tasa_res:.4f}\%
-                        \end{{aligned}}
-                        """
-                    )
-
+                    m1.metric("Valor Presente Requerido (C)", formato_cop(c_in))
+                    m2.metric("Intereses a devengar", formato_cop(interes_calc))
+                    formula = rf"C = \frac{{M}}{{1 + i \cdot t}} = \frac{{{m_in:,.2f}}}{{1 + {tasa_in/100:.6g} \cdot {t:.6g}}} = {c_in:,.2f}\text{{ COP}}"
+                elif accion_simple == "Tasa de interés":
+                    t = plazo_in * t_por_unidad
+                    tasa_in = despejar_tasa_interes_simple(c_in, m_in, t)
+                    st.metric(f"Tasa despejada por {unidad_tasa.lower()}", f"{tasa_in:.4f}%")
+                    formula = rf"i = \frac{{M - C}}{{C \cdot t}} = \frac{{{m_in:,.2f} - {c_in:,.2f}}}{{{c_in:,.2f} \cdot {t:.6g}}} = {tasa_in:.4f}\%"
                 else:
-                    t_res = despejar_tiempo_interes_simple(c_in, m_in, tasa_in)
-                    st.metric(f"Plazo Despejado en {unidad_tiempo}", f"{t_res:.2f} {unidad_tiempo}")
-                    st.latex(
-                        rf"""
-                        \begin{{aligned}}
-                        t &= \frac{{M - C}}{{C \cdot i}} \\
-                        t &= \frac{{{m_in:,.2f} - {c_in:,.2f}}}{{{c_in:,.2f} \cdot {tasa_in/100:.6g}}} = {t_res:.2f}\text{{ {unidad_tiempo.lower()}}}
-                        \end{{aligned}}
-                        """
-                    )
+                    t = despejar_tiempo_interes_simple(c_in, m_in, tasa_in)
+                    plazo_in = t / t_por_unidad
+                    st.metric(f"Plazo despejado ({unidad_tiempo.lower()})", f"{plazo_in:,.2f}")
+                    formula = rf"t = \frac{{M - C}}{{C \cdot i}} = \frac{{{m_in:,.2f} - {c_in:,.2f}}}{{{c_in:,.2f} \cdot {tasa_in/100:.6g}}} = {t:.6g}\text{{ {unidad_tasa.lower()}(s)}}"
+
+                x_plazo, saldos = evolucion_interes_simple(c_in, tasa_in, plazo_in, t_por_unidad)
+                fig_s = go.Figure()
+                fig_s.add_trace(go.Scatter(x=x_plazo, y=saldos, mode="lines", name="Interés simple", line=dict(color="#2a78d6", width=3)))
+                fig_s.update_layout(
+                    title=f"Evolución del valor acumulado con interés simple ({convencion})",
+                    xaxis_title=f"Plazo ({unidad_tiempo.lower()})",
+                    yaxis_title="Monto acumulado (COP)",
+                    template="plotly_white",
+                    margin=dict(l=20, r=20, t=40, b=20),
+                    height=290,
+                )
+                st.plotly_chart(fig_s, use_container_width=True)
+
+                st.markdown("##### Sustento Matemático y Fórmulas")
+                st.latex(formula)
+                st.caption(f"Tiempo usado: t = {t:.6g} {unidad_tasa.lower()}(s), en la misma unidad de la tasa.")
 
             except Exception as e:
                 st.error(f"Error en el cálculo: {e}")
@@ -175,25 +135,23 @@ def render():
                 key="compuesto_accion",
             )
 
-            with st.form("form_interes_compuesto"):
-                if accion_compuesto == "Valor Futuro (VF) e Interés Total":
-                    vp_in = st.number_input("Valor Presente - VP (COP)", min_value=0.0, value=5_000_000.0, step=500_000.0, format="%.2f", key="comp_vp_1")
-                    tasa_in = st.number_input("Tasa periódica efectiva i (%)", value=2.0, step=0.25, format="%.4f", key="comp_tasa_1")
-                    n_in = st.number_input("Número de períodos (n)", min_value=1.0, value=12.0, step=1.0, format="%.2f", key="comp_n_1")
-                elif accion_compuesto == "Valor Presente (VP)":
-                    vf_in = st.number_input("Valor Futuro objetivo - VF (COP)", min_value=0.0, value=6_341_208.97, step=500_000.0, format="%.2f", key="comp_vf_2")
-                    tasa_in = st.number_input("Tasa periódica efectiva i (%)", value=2.0, step=0.25, format="%.4f", key="comp_tasa_2")
-                    n_in = st.number_input("Número de períodos (n)", min_value=1.0, value=12.0, step=1.0, format="%.2f", key="comp_n_2")
-                elif accion_compuesto == "Tasa periódica efectiva (i)":
-                    vp_in = st.number_input("Valor Presente - VP (COP)", min_value=0.0, value=5_000_000.0, step=500_000.0, format="%.2f", key="comp_vp_3")
-                    vf_in = st.number_input("Valor Futuro final - VF (COP)", min_value=0.0, value=6_341_208.97, step=500_000.0, format="%.2f", key="comp_vf_3")
-                    n_in = st.number_input("Número de períodos (n)", min_value=1.0, value=12.0, step=1.0, format="%.2f", key="comp_n_3")
-                else:
-                    vp_in = st.number_input("Valor Presente - VP (COP)", min_value=0.0, value=5_000_000.0, step=500_000.0, format="%.2f", key="comp_vp_4")
-                    vf_in = st.number_input("Valor Futuro final - VF (COP)", min_value=0.0, value=6_341_208.97, step=500_000.0, format="%.2f", key="comp_vf_4")
-                    tasa_in = st.number_input("Tasa periódica efectiva i (%)", min_value=0.001, value=2.0, step=0.25, format="%.4f", key="comp_tasa_4")
+            if accion_compuesto == "Valor Futuro (VF) e Interés Total":
+                vp_in = st.number_input("Valor Presente - VP (COP)", min_value=0.0, value=5_000_000.0, step=500_000.0, format="%.2f", key="comp_vp_1")
+                tasa_in = st.number_input("Tasa periódica efectiva i (%)", value=2.0, step=0.25, format="%.4f", key="comp_tasa_1")
+                n_in = st.number_input("Número de períodos (n)", min_value=1.0, value=12.0, step=1.0, format="%.2f", key="comp_n_1")
+            elif accion_compuesto == "Valor Presente (VP)":
+                vf_in = st.number_input("Valor Futuro objetivo - VF (COP)", min_value=0.0, value=6_341_208.97, step=500_000.0, format="%.2f", key="comp_vf_2")
+                tasa_in = st.number_input("Tasa periódica efectiva i (%)", value=2.0, step=0.25, format="%.4f", key="comp_tasa_2")
+                n_in = st.number_input("Número de períodos (n)", min_value=1.0, value=12.0, step=1.0, format="%.2f", key="comp_n_2")
+            elif accion_compuesto == "Tasa periódica efectiva (i)":
+                vp_in = st.number_input("Valor Presente - VP (COP)", min_value=0.0, value=5_000_000.0, step=500_000.0, format="%.2f", key="comp_vp_3")
+                vf_in = st.number_input("Valor Futuro final - VF (COP)", min_value=0.0, value=6_341_208.97, step=500_000.0, format="%.2f", key="comp_vf_3")
+                n_in = st.number_input("Número de períodos (n)", min_value=1.0, value=12.0, step=1.0, format="%.2f", key="comp_n_3")
+            else:
+                vp_in = st.number_input("Valor Presente - VP (COP)", min_value=0.0, value=5_000_000.0, step=500_000.0, format="%.2f", key="comp_vp_4")
+                vf_in = st.number_input("Valor Futuro final - VF (COP)", min_value=0.0, value=6_341_208.97, step=500_000.0, format="%.2f", key="comp_vf_4")
+                tasa_in = st.number_input("Tasa periódica efectiva i (%)", min_value=0.001, value=2.0, step=0.25, format="%.4f", key="comp_tasa_4")
 
-                btn_compuesto = st.form_submit_button("Recalcular Interés Compuesto", type="primary")
 
         with col_view_c:
             st.markdown("#### 📊 Crecimiento Exponencial por Capitalización")
@@ -288,11 +246,9 @@ def render():
 
         with col_c_p:
             st.markdown("#### 🎛️ Parámetros Comunes")
-            with st.form("form_comparacion_interes"):
-                comp_capital = st.number_input("Capital Inicial (COP)", min_value=0.0, value=10_000_000.0, step=1_000_000.0, format="%.2f", key="comp_cap")
-                comp_tasa = st.number_input("Tasa Periódica Común (%)", min_value=0.0, value=2.0, step=0.25, format="%.4f", key="comp_tasa")
-                comp_n = st.number_input("Número de Períodos (n)", min_value=1, max_value=120, value=24, step=1, key="comp_per")
-                btn_compare = st.form_submit_button("Comparar Regímenes", type="primary")
+            comp_capital = st.number_input("Capital Inicial (COP)", min_value=0.0, value=10_000_000.0, step=1_000_000.0, format="%.2f", key="comp_cap")
+            comp_tasa = st.number_input("Tasa Periódica Común (%)", min_value=0.0, value=2.0, step=0.25, format="%.4f", key="comp_tasa")
+            comp_n = st.number_input("Número de Períodos (n)", min_value=1, max_value=120, value=24, step=1, key="comp_per")
 
         saldos_s = calcular_saldos_simple(comp_capital, comp_tasa, comp_n)
         saldos_c = calcular_saldos_compuesto(comp_capital, comp_tasa, comp_n)
@@ -306,7 +262,7 @@ def render():
             k1, k2, k3 = st.columns(3)
             k1.metric("Valor Final Simple", formato_cop(m_final_simple))
             k2.metric("Valor Final Compuesto", formato_cop(m_final_compuesto))
-            k3.metric("Brecha a Favor de Compuesto", formato_cop(brecha_final), delta=f"+{((m_final_compuesto/m_final_simple)-1)*100:.2f}%")
+            k3.metric("Brecha a Favor de Compuesto", formato_cop(brecha_final), delta=f"+{variacion_pct(brecha_final, m_final_simple):.2f}%")
 
             df_comp = pd.DataFrame({
                 "Período": list(range(comp_n + 1)),

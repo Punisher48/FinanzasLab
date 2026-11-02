@@ -2,7 +2,18 @@
 
 import streamlit as st
 
-from motor.tasas import *  # noqa: F401,F403
+from motor.tasas import (
+    anticipada_a_vencida,
+    efectiva_anual_desde_nominal,
+    efectiva_anual_desde_periodica,
+    generar_tabla_equivalencias,
+    nominal_desde_efectiva_anual,
+    periodica_desde_efectiva_anual,
+    rentabilidad_con_retencion,
+    tasa_combinada,
+    tasa_real_fisher,
+    vencida_a_anticipada,
+)
 
 
 # ------------------ RENDER STREAMLIT ------------------
@@ -39,25 +50,23 @@ def render():
                 key="tasas_tipo_conv",
             )
 
-            with st.form("form_conversion_tasas"):
-                if tipo_conversion == "Periódica Vencida ↔ Periódica Anticipada":
-                    direccion = st.radio("Dirección", ["Vencida a Anticipada", "Anticipada a Vencida"], horizontal=True)
-                    tasa_in = st.number_input("Tasa periódica de entrada (%)", value=2.0, step=0.1, format="%.6f")
-                    m_in = 12
-                elif tipo_conversion in ("Efectiva Periódica → Efectiva Anual (EA)", "Efectiva Anual (EA) → Efectiva Periódica"):
-                    tasa_in = st.number_input("Tasa de entrada (%)", value=12.0, step=0.5, format="%.6f")
-                    m_in = st.number_input("Períodos por año (m) [Mensual=12, Trimestral=4]", min_value=1, max_value=365, value=12, step=1)
-                    direccion = None
-                elif tipo_conversion == "Nominal Anual (Vencida / Anticipada) → Efectiva Anual (EA)":
-                    tasa_in = st.number_input("Tasa Nominal Anual (%)", value=24.0, step=0.5, format="%.6f")
-                    m_in = st.number_input("Períodos por año (m)", min_value=1, max_value=365, value=12, step=1)
-                    direccion = st.selectbox("Modalidad", ["Vencida", "Anticipada"])
-                else:
-                    tasa_in = st.number_input("Tasa Efectiva Anual (%)", value=26.8242, step=0.5, format="%.6f")
-                    m_in = st.number_input("Períodos por año (m)", min_value=1, max_value=365, value=12, step=1)
-                    direccion = st.selectbox("Modalidad deseada", ["Vencida", "Anticipada"])
+            if tipo_conversion == "Periódica Vencida ↔ Periódica Anticipada":
+                direccion = st.radio("Dirección", ["Vencida a Anticipada", "Anticipada a Vencida"], horizontal=True)
+                tasa_in = st.number_input("Tasa periódica de entrada (%)", value=2.0, step=0.1, format="%.6f")
+                m_in = 12
+            elif tipo_conversion in ("Efectiva Periódica → Efectiva Anual (EA)", "Efectiva Anual (EA) → Efectiva Periódica"):
+                tasa_in = st.number_input("Tasa de entrada (%)", value=12.0, step=0.5, format="%.6f")
+                m_in = st.number_input("Períodos por año (m) [Mensual=12, Trimestral=4]", min_value=1, max_value=365, value=12, step=1)
+                direccion = None
+            elif tipo_conversion == "Nominal Anual (Vencida / Anticipada) → Efectiva Anual (EA)":
+                tasa_in = st.number_input("Tasa Nominal Anual (%)", value=24.0, step=0.5, format="%.6f")
+                m_in = st.number_input("Períodos por año (m)", min_value=1, max_value=365, value=12, step=1)
+                direccion = st.selectbox("Modalidad", ["Vencida", "Anticipada"])
+            else:
+                tasa_in = st.number_input("Tasa Efectiva Anual (%)", value=26.8242, step=0.5, format="%.6f")
+                m_in = st.number_input("Períodos por año (m)", min_value=1, max_value=365, value=12, step=1)
+                direccion = st.selectbox("Modalidad deseada", ["Vencida", "Anticipada"])
 
-                btn_conv = st.form_submit_button("Realizar Conversión", type="primary")
 
         with col_view:
             st.markdown("#### 📊 Tasa Equivalente Resultante")
@@ -145,15 +154,13 @@ def render():
                 ["Tasa Combinada (Inflación + Tasa Real / DTF + Spread)", "Despejar Tasa Real Deflactada"],
                 key="combo_modo",
             )
-            with st.form("form_tasas_combinadas"):
-                if "Combinada" in modo_combinada:
-                    tasa_base = st.number_input("Tasa base / Inflación (%)", value=5.5, step=0.25, format="%.4f")
-                    spread = st.number_input("Puntos adicionales / Tasa real (%)", value=4.0, step=0.25, format="%.4f")
-                else:
-                    tasa_aparente = st.number_input("Tasa aparente o corriente (%)", value=12.0, step=0.25, format="%.4f")
-                    inflacion = st.number_input("Tasa de inflación del período (%)", value=6.0, step=0.25, format="%.4f")
+            if "Combinada" in modo_combinada:
+                tasa_base = st.number_input("Tasa base / Inflación (%)", value=5.5, step=0.25, format="%.4f")
+                spread = st.number_input("Puntos adicionales / Tasa real (%)", value=4.0, step=0.25, format="%.4f")
+            else:
+                tasa_aparente = st.number_input("Tasa aparente o corriente (%)", value=12.0, step=0.25, format="%.4f")
+                inflacion = st.number_input("Tasa de inflación del período (%)", value=6.0, step=0.25, format="%.4f")
 
-                btn_comb = st.form_submit_button("Calcular Tasa", type="primary")
 
         with col_f_res:
             st.markdown("#### 📊 Resultado")
@@ -176,28 +183,29 @@ def render():
         col_r_in, col_r_res = st.columns([0.4, 0.6], gap="large")
 
         with col_r_in:
-            with st.form("form_retencion"):
-                inv_inicial = st.number_input("Monto invertido (COP)", min_value=1.0, value=10_000_000.0, step=1_000_000.0, format="%.2f")
-                dias_plazo = st.number_input("Plazo de la inversión (días)", min_value=1.0, value=180.0, step=30.0)
-                v_final_bruto = st.number_input("Valor final bruto esperado (COP)", min_value=1.0, value=10_600_000.0, step=100_000.0, format="%.2f")
-                tasa_retefuente = st.number_input("Retención en la fuente (%)", min_value=0.0, max_value=100.0, value=4.0, step=1.0, format="%.2f")
-                btn_ret = st.form_submit_button("Calcular Impacto Tributario", type="primary")
+            inv_inicial = st.number_input("Monto invertido (COP)", min_value=1.0, value=10_000_000.0, step=1_000_000.0, format="%.2f")
+            dias_plazo = st.number_input("Plazo de la inversión (días)", min_value=1.0, value=180.0, step=30.0)
+            v_final_bruto = st.number_input("Valor final bruto esperado (COP)", min_value=1.0, value=10_600_000.0, step=100_000.0, format="%.2f")
+            tasa_retefuente = st.number_input("Retención en la fuente (%)", min_value=0.0, max_value=100.0, value=4.0, step=1.0, format="%.2f")
 
-        res_ret = rentabilidad_con_retencion(inv_inicial, v_final_bruto, tasa_retefuente, dias_plazo)
+        try:
+            res_ret = rentabilidad_con_retencion(inv_inicial, v_final_bruto, tasa_retefuente, dias_plazo)
 
-        with col_r_res:
-            col_k1, col_k2, col_k3 = st.columns(3)
-            col_k1.metric("Intereses Brutos", f"${res_ret['rendimiento_bruto']:,.2f} COP")
-            col_k2.metric(f"Retención ({tasa_retefuente}%)", f"-${res_ret['retencion_valor']:,.2f} COP", delta="-Deducción fiscal")
-            col_k3.metric("Intereses Netos", f"${res_ret['rendimiento_neto']:,.2f} COP")
+            with col_r_res:
+                col_k1, col_k2, col_k3 = st.columns(3)
+                col_k1.metric("Intereses Brutos", f"${res_ret['rendimiento_bruto']:,.2f} COP")
+                col_k2.metric(f"Retención ({tasa_retefuente}%)", f"-${res_ret['retencion_valor']:,.2f} COP", delta="-Deducción fiscal")
+                col_k3.metric("Intereses Netos", f"${res_ret['rendimiento_neto']:,.2f} COP")
 
-            col_t1, col_t2 = st.columns(2)
-            col_t1.metric("TEA Bruta", f"{res_ret['ea_bruta']:.4f}%")
-            col_t2.metric("TEA Neta Real", f"{res_ret['ea_neta']:.4f}%", delta=f"{res_ret['ea_neta'] - res_ret['ea_bruta']:.4f}%")
+                col_t1, col_t2 = st.columns(2)
+                col_t1.metric("TEA Bruta", f"{res_ret['ea_bruta']:.4f}%")
+                col_t2.metric("TEA Neta Real", f"{res_ret['ea_neta']:.4f}%", delta=f"{res_ret['ea_neta'] - res_ret['ea_bruta']:.4f}%")
 
-            st.markdown("##### Procedimiento Tributario")
-            st.latex(r"\text{Retención} = \text{Rendimiento Bruto} \times \text{Tasa Retefuente}")
-            st.latex(r"EA_{\text{neta}} = \left(1 + \frac{\text{Rendimiento Neto}}{V_0}\right)^{\frac{360}{\text{Días}}} - 1")
+                st.markdown("##### Procedimiento Tributario")
+                st.latex(r"\text{Retención} = \text{Rendimiento Bruto} \times \text{Tasa Retefuente}")
+                st.latex(r"EA_{\text{neta}} = \left(1 + \frac{\text{Rendimiento Neto}}{V_0}\right)^{\frac{360}{\text{Días}}} - 1")
+        except Exception as e:
+            st.error(f"Error en el cálculo: {e}")
 
     with tab_verif:
         st.subheader("Supuestos Técnicos y Verificación de Tasas")

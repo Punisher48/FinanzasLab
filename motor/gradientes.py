@@ -5,12 +5,14 @@ def calcular_gradiente_aritmetico(
     incremento_g: float,
     tasa_pct: float,
     periodos: int,
-) -> dict[str, any]:
+) -> dict:
     """Calcula VP, VF, Cuota Uniforme Equivalente y flujos para gradiente aritmético."""
     if primer_pago < 0:
         raise ValueError("El primer pago no puede ser negativo.")
     if periodos < 1:
         raise ValueError("El número de períodos debe ser al menos 1.")
+    if tasa_pct <= -100:
+        raise ValueError("La tasa debe ser mayor que -100%.")
     tasa = tasa_pct / 100.0
 
     pagos = [primer_pago + (t * incremento_g) for t in range(periodos)]
@@ -41,7 +43,7 @@ def calcular_gradiente_geometrico(
     crecimiento_pct: float,
     tasa_pct: float,
     periodos: int,
-) -> dict[str, any]:
+) -> dict:
     """Calcula VP, VF, Cuota Uniforme Equivalente y flujos para gradiente geométrico."""
     if primer_pago < 0:
         raise ValueError("El primer pago no puede ser negativo.")
@@ -51,6 +53,8 @@ def calcular_gradiente_geometrico(
     g = crecimiento_pct / 100.0
     tasa = tasa_pct / 100.0
 
+    if tasa_pct <= -100:
+        raise ValueError("La tasa debe ser mayor que -100%.")
     if g < -1.0:
         raise ValueError("La tasa de decrecimiento no puede ser menor a -100%.")
 

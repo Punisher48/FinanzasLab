@@ -5,7 +5,13 @@ from plotly.subplots import make_subplots
 import streamlit as st
 
 from motor.formato import formato_cop
-from motor.series import *  # noqa: F401,F403
+from motor.series import (
+    cuota_para_prestamo,
+    cuota_para_valor_futuro,
+    generar_flujo_serie,
+    valor_futuro_serie,
+    valor_presente_serie,
+)
 
 
 # ------------------ RENDER STREAMLIT ------------------
@@ -36,17 +42,15 @@ def render():
                 key="serie_operacion",
             )
 
-            with st.form("form_series"):
-                if operacion in ("Valor Futuro de la serie (Ahorro)", "Valor Presente de la serie (Préstamo / Inversión)"):
-                    importe = st.number_input("Cuota periódica constante A (COP)", min_value=0.0, value=500_000.0, step=50_000.0, format="%.2f")
-                elif operacion == "Cuota requerida para meta de Valor Futuro":
-                    importe = st.number_input("Monto objetivo futuro VF (COP)", min_value=0.0, value=20_000_000.0, step=1_000_000.0, format="%.2f")
-                else:
-                    importe = st.number_input("Monto del préstamo VP (COP)", min_value=0.0, value=20_000_000.0, step=1_000_000.0, format="%.2f")
+            if operacion in ("Valor Futuro de la serie (Ahorro)", "Valor Presente de la serie (Préstamo / Inversión)"):
+                importe = st.number_input("Cuota periódica constante A (COP)", min_value=0.0, value=500_000.0, step=50_000.0, format="%.2f")
+            elif operacion == "Cuota requerida para meta de Valor Futuro":
+                importe = st.number_input("Monto objetivo futuro VF (COP)", min_value=0.0, value=20_000_000.0, step=1_000_000.0, format="%.2f")
+            else:
+                importe = st.number_input("Monto del préstamo VP (COP)", min_value=0.0, value=20_000_000.0, step=1_000_000.0, format="%.2f")
 
-                tasa_pct = st.number_input("Tasa periódica efectiva i (%)", min_value=0.0, value=1.5, step=0.1, format="%.4f")
-                n_periodos = st.number_input("Número de pagos / períodos (n)", min_value=1, max_value=360, value=24, step=1)
-                btn_calcular = st.form_submit_button("Recalcular Serie Uniforme", type="primary")
+            tasa_pct = st.number_input("Tasa periódica efectiva i (%)", min_value=0.0, value=1.5, step=0.1, format="%.4f")
+            n_periodos = st.number_input("Número de pagos / períodos (n)", min_value=1, max_value=360, value=24, step=1)
 
         with col_view:
             st.markdown("#### 📊 Proyección del Flujo y Acumulación")
@@ -123,23 +127,25 @@ def render():
                 st.markdown("##### Sustento Matemático y Fórmulas")
                 st.latex(formula)
                 t_dec = tasa_pct / 100.0
+                # En la serie anticipada cada pago gana un periodo más: factor (1 + i).
+                ajuste = rf" \cdot (1 + {t_dec:.6g})" if modalidad == "Anticipada" else ""
                 if operacion == "Valor Futuro de la serie (Ahorro)":
-                    st.latex(rf"VF = {cuota_val:,.2f} \cdot \left[\frac{{(1 + {t_dec:.6g})^{{{n_periodos}}} - 1}}{{{t_dec:.6g}}}\right] = {resultado:,.2f}\text{{ COP}}")
+                    st.latex(rf"VF = {cuota_val:,.2f} \cdot \left[\frac{{(1 + {t_dec:.6g})^{{{n_periodos}}} - 1}}{{{t_dec:.6g}}}\right]{ajuste} = {resultado:,.2f}\text{{ COP}}")
                 elif operacion == "Valor Presente de la serie (Préstamo / Inversión)":
-                    st.latex(rf"VP = {cuota_val:,.2f} \cdot \left[\frac{{1 - (1 + {t_dec:.6g})^{{-{n_periodos}}}}}{{{t_dec:.6g}}}\right] = {resultado:,.2f}\text{{ COP}}")
+                    st.latex(rf"VP = {cuota_val:,.2f} \cdot \left[\frac{{1 - (1 + {t_dec:.6g})^{{-{n_periodos}}}}}{{{t_dec:.6g}}}\right]{ajuste} = {resultado:,.2f}\text{{ COP}}")
                 elif operacion == "Cuota requerida para meta de Valor Futuro":
-                    st.latex(rf"A = {importe:,.2f} \cdot \left[\frac{{{t_dec:.6g}}}{{(1 + {t_dec:.6g})^{{{n_periodos}}} - 1}}\right] = {resultado:,.2f}\text{{ COP}}")
+                    st.latex(rf"A = \frac{{{importe:,.2f}}}{{\left[\frac{{(1 + {t_dec:.6g})^{{{n_periodos}}} - 1}}{{{t_dec:.6g}}}\right]{ajuste}}} = {resultado:,.2f}\text{{ COP}}")
                 else:
-                    st.latex(rf"A = {importe:,.2f} \cdot \left[\frac{{{t_dec:.6g}}}{{1 - (1 + {t_dec:.6g})^{{-{n_periodos}}}}}\right] = {resultado:,.2f}\text{{ COP}}")
+                    st.latex(rf"A = \frac{{{importe:,.2f}}}{{\left[\frac{{1 - (1 + {t_dec:.6g})^{{-{n_periodos}}}}}{{{t_dec:.6g}}}\right]{ajuste}}} = {resultado:,.2f}\text{{ COP}}")
+
+                st.markdown("##### 📋 Flujo Período a Período")
+                df_mostrar = df_flujo.copy()
+                for col in ["Flujo Pago (COP)", "Interés Ganado (COP)", "Saldo Acumulado (COP)"]:
+                    df_mostrar[col] = df_mostrar[col].map(formato_cop)
+                st.dataframe(df_mostrar, use_container_width=True, hide_index=True)
 
             except Exception as e:
                 st.error(f"Error en el cálculo: {e}")
-
-        st.markdown("##### 📋 Flujo Período a Período")
-        df_mostrar = df_flujo.copy()
-        for col in ["Flujo Pago (COP)", "Interés Ganado (COP)", "Saldo Acumulado (COP)"]:
-            df_mostrar[col] = df_mostrar[col].map(formato_cop)
-        st.dataframe(df_mostrar, use_container_width=True, hide_index=True)
 
     with tab_verif:
         st.subheader("Supuestos Técnicos y Verificación de Series Uniformes")

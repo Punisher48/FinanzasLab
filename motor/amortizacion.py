@@ -2,7 +2,7 @@
 
 import pandas as pd
 
-from motor.tasas import periodica_desde_efectiva_anual
+from motor.tasas import a_efectiva_anual, periodica_desde_efectiva_anual
 
 
 MAX_CUOTAS = 600
@@ -17,23 +17,27 @@ PERIODICIDADES_AMORT = {
 
 
 def calcular_tasa_periodica(tasa_valor: float, tipo_tasa: str, periodicidad: str) -> float:
-    """Convierte la tasa ingresada a tasa efectiva periódica según la frecuencia."""
-    m = PERIODICIDADES_AMORT.get(periodicidad, 12)
+    """Convierte la tasa ingresada a tasa efectiva periódica vencida, según la periodicidad de pago."""
+    if periodicidad not in PERIODICIDADES_AMORT:
+        raise ValueError(f"Periodicidad desconocida: {periodicidad}")
+    m = PERIODICIDADES_AMORT[periodicidad]
     if tipo_tasa == "Efectiva Periódica":
-        return tasa_valor / 100.0
-    elif tipo_tasa == "Efectiva Anual (EA)":
-        return periodica_desde_efectiva_anual(tasa_valor, m) / 100.0
-    elif tipo_tasa == "Nominal Anual Vencida":
-        return (tasa_valor / 100.0) / m
-    return tasa_valor / 100.0
+        tipo_tasa = "Efectiva Periódica Vencida"
+    return periodica_desde_efectiva_anual(a_efectiva_anual(tasa_valor, tipo_tasa, m), m) / 100.0
+
+
+def _validar_credito(prestamo: float, tasa_periodica: float, n_cuotas: int) -> None:
+    if prestamo <= 0 or n_cuotas < 1:
+        raise ValueError("El préstamo debe ser > 0 y el número de cuotas >= 1.")
+    if tasa_periodica < 0:
+        raise ValueError("La tasa de un crédito no puede ser negativa.")
 
 
 # ------------------ SISTEMA FRANCÉS (CUOTA FIJA) ------------------
 
 def amortizacion_frances(prestamo: float, tasa_periodica: float, n_cuotas: int) -> pd.DataFrame:
     """Genera la tabla de amortización por el sistema francés (cuota fija)."""
-    if prestamo <= 0 or n_cuotas < 1:
-        raise ValueError("El préstamo debe ser > 0 y el número de cuotas >= 1.")
+    _validar_credito(prestamo, tasa_periodica, n_cuotas)
 
     if tasa_periodica == 0:
         cuota_fija = prestamo / n_cuotas
@@ -71,8 +75,7 @@ def amortizacion_frances(prestamo: float, tasa_periodica: float, n_cuotas: int) 
 
 def amortizacion_aleman(prestamo: float, tasa_periodica: float, n_cuotas: int) -> pd.DataFrame:
     """Genera la tabla de amortización por el sistema alemán (abono constante a capital)."""
-    if prestamo <= 0 or n_cuotas < 1:
-        raise ValueError("El préstamo debe ser > 0 y el número de cuotas >= 1.")
+    _validar_credito(prestamo, tasa_periodica, n_cuotas)
 
     abono_fijo = prestamo / n_cuotas
     filas = []

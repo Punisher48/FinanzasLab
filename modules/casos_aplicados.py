@@ -5,7 +5,7 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from motor.amortizacion import amortizacion_frances, amortizacion_aleman
-from motor.formato import formato_cop
+from motor.formato import formato_cop, variacion_pct
 from motor.gradientes import calcular_gradiente_geometrico
 from motor.series import valor_futuro_serie, cuota_para_valor_futuro
 from motor.tasas import (
@@ -46,13 +46,11 @@ def render():
 
         with col1_c:
             st.markdown("#### 🎛️ Parámetros de Inversión")
-            with st.form("form_caso_1"):
-                inv_capital = st.number_input("Capital a Invertir (COP)", min_value=1_000_000.0, value=15_000_000.0, step=1_000_000.0, format="%.2f", key="c1_cap")
-                inv_plazo_dias = st.number_input("Plazo de Inversión (Días)", min_value=30.0, max_value=720.0, value=180.0, step=30.0, key="c1_plazo")
-                tasa_cdt_ea = st.number_input("Tasa CDT Bancolombia (% EA)", min_value=0.0, value=10.25, step=0.25, format="%.4f", key="c1_tasa_cdt")
-                tasa_nu_ea = st.number_input("Tasa Cuenta Nu (% EA)", min_value=0.0, value=12.00, step=0.25, format="%.4f", key="c1_tasa_nu")
-                retefuente_pct = st.slider("Retención en la Fuente sobre rendimientos (%)", min_value=0.0, max_value=10.0, value=4.0, step=0.5, key="c1_rete")
-                btn_caso1 = st.form_submit_button("Simular y Comparar", type="primary")
+            inv_capital = st.number_input("Capital a Invertir (COP)", min_value=1_000_000.0, value=15_000_000.0, step=1_000_000.0, format="%.2f", key="c1_cap")
+            inv_plazo_dias = st.number_input("Plazo de Inversión (Días)", min_value=30.0, max_value=720.0, value=180.0, step=30.0, key="c1_plazo")
+            tasa_cdt_ea = st.number_input("Tasa CDT Bancolombia (% EA)", min_value=0.0, value=10.25, step=0.25, format="%.4f", key="c1_tasa_cdt")
+            tasa_nu_ea = st.number_input("Tasa Cuenta Nu (% EA)", min_value=0.0, value=12.00, step=0.25, format="%.4f", key="c1_tasa_nu")
+            retefuente_pct = st.slider("Retención en la Fuente sobre rendimientos (%)", min_value=0.0, max_value=10.0, value=4.0, step=0.5, key="c1_rete")
 
         factor_plazo = inv_plazo_dias / 360.0
         tasa_per_cdt = ((1.0 + (tasa_cdt_ea / 100.0)) ** factor_plazo) - 1.0
@@ -69,7 +67,7 @@ def render():
             col_k1, col_k2, col_k3 = st.columns(3)
             col_k1.metric("Neto CDT Bancolombia", formato_cop(inv_capital + res_cdt["rendimiento_neto"]), delta=f"TEA Neta: {res_cdt['ea_neta']:.2f}%")
             col_k2.metric("Neto Cuenta Nu", formato_cop(inv_capital + res_nu["rendimiento_neto"]), delta=f"TEA Neta: {res_nu['ea_neta']:.2f}%")
-            col_k3.metric("Ventaja a favor de Nu", formato_cop(diferencia_neta), delta=f"+{((res_nu['rendimiento_neto']/res_cdt['rendimiento_neto'])-1)*100:.1f}%")
+            col_k3.metric("Ventaja a favor de Nu", formato_cop(diferencia_neta), delta=f"+{variacion_pct(diferencia_neta, res_cdt['rendimiento_neto']):.1f}%")
 
             # Gráfico de barras comparativas
             fig_c1 = go.Figure()
@@ -163,11 +161,9 @@ def render():
 
         with col2_c:
             st.markdown("#### 🎛️ Parámetros del Crédito")
-            with st.form("form_caso_2"):
-                prestamo_auto = st.number_input("Valor a Financiar (COP)", min_value=5_000_000.0, value=40_000_000.0, step=2_000_000.0, format="%.2f", key="c2_prestamo")
-                tasa_auto_mes = st.number_input("Tasa Mensual Vencida (%)", min_value=0.0, value=1.25, step=0.05, format="%.4f", key="c2_tasa")
-                plazo_auto_meses = st.number_input("Plazo del Crédito (Meses)", min_value=6, max_value=84, value=48, step=6, key="c2_plazo")
-                btn_caso2 = st.form_submit_button("Evaluar Sistemas de Amortización", type="primary")
+            prestamo_auto = st.number_input("Valor a Financiar (COP)", min_value=5_000_000.0, value=40_000_000.0, step=2_000_000.0, format="%.2f", key="c2_prestamo")
+            tasa_auto_mes = st.number_input("Tasa Mensual Vencida (%)", min_value=0.0, value=1.25, step=0.05, format="%.4f", key="c2_tasa")
+            plazo_auto_meses = st.number_input("Plazo del Crédito (Meses)", min_value=6, max_value=84, value=48, step=6, key="c2_plazo")
 
         tasa_auto_ea = efectiva_anual_desde_periodica(tasa_auto_mes, 12)
         df_frances = amortizacion_frances(prestamo_auto, tasa_auto_mes / 100.0, int(plazo_auto_meses))
@@ -189,7 +185,7 @@ def render():
             m1.metric("Costo Real (TEA)", f"{tasa_auto_ea:.2f}% EA")
             m2.metric("Intereses Francés", formato_cop(tot_int_f))
             m3.metric("Intereses Alemán", formato_cop(tot_int_a))
-            m4.metric("Ahorro Alemán", formato_cop(ahorro_int), delta=f"-{(ahorro_int/tot_int_f)*100:.1f}%")
+            m4.metric("Ahorro Alemán", formato_cop(ahorro_int), delta=f"-{variacion_pct(ahorro_int, tot_int_f):.1f}%")
 
             fig_auto = go.Figure()
             fig_auto.add_trace(go.Scatter(x=df_frances["Período"], y=df_frances["Cuota (COP)"], mode="lines+markers", name="Sistema Francés (Cuota Fija)", line=dict(color="#f59e0b", width=3)))
@@ -211,7 +207,7 @@ def render():
             1. **¿Cuál es el costo real del producto?**
                - La tasa pactada del **{tasa_auto_mes:.2f}% mes vencido** equivale a un costo efectivo anual real del **{tasa_auto_ea:.2f}% EA** (Tasa Nominal Anual del {tasa_auto_mes*12:.2f}% MV).
             2. **¿Cuánto se paga en total y qué parte corresponde a intereses?**
-               - **Sistema Francés**: Se pagan en total **{formato_cop(tot_pag_f)}**, de los cuales **{formato_cop(tot_int_f)}** corresponden a intereses ({((tot_int_f/tot_pag_f)*100):.1f}% del desembolso total).
+               - **Sistema Francés**: Se pagan en total **{formato_cop(tot_pag_f)}**, de los cuales **{formato_cop(tot_int_f)}** corresponden a intereses ({variacion_pct(tot_int_f, tot_pag_f):.1f}% del desembolso total).
                - **Sistema Alemán**: Se pagan en total **{formato_cop(tot_pag_a)}**, de los cuales **{formato_cop(tot_int_a)}** son intereses.
             3. **¿Cómo cambia el resultado si varían la tasa o el plazo?**
                - Al incrementar el plazo de 48 a 60 o 72 meses, el total de intereses se dispara dramáticamente en el sistema francés. El sistema alemán amortiza el principal más rápido, preservando el ahorro financiero.
@@ -236,12 +232,10 @@ def render():
 
         with col3_c:
             st.markdown("#### 🎛️ Parámetros de la Meta de Ahorro")
-            with st.form("form_caso_3"):
-                meta_vivienda = st.number_input("Meta de Cuota Inicial (COP)", min_value=5_000_000.0, value=30_000_000.0, step=1_000_000.0, format="%.2f", key="c3_meta")
-                rentabilidad_fondo_ea = st.number_input("Rentabilidad del Fondo (% EA)", min_value=0.0, value=8.50, step=0.25, format="%.4f", key="c3_ea")
-                plazo_ahorro_meses = st.number_input("Plazo de Ahorro (Meses)", min_value=6, max_value=60, value=36, step=6, key="c3_plazo")
-                g_mensual_pct = st.slider("Crecimiento de cuota mensual por gradiente (%)", min_value=0.1, max_value=2.0, value=0.5, step=0.1, key="c3_g")
-                btn_caso3 = st.form_submit_button("Evaluar Esquemas de Ahorro", type="primary")
+            meta_vivienda = st.number_input("Meta de Cuota Inicial (COP)", min_value=5_000_000.0, value=30_000_000.0, step=1_000_000.0, format="%.2f", key="c3_meta")
+            rentabilidad_fondo_ea = st.number_input("Rentabilidad del Fondo (% EA)", min_value=0.0, value=8.50, step=0.25, format="%.4f", key="c3_ea")
+            plazo_ahorro_meses = st.number_input("Plazo de Ahorro (Meses)", min_value=6, max_value=60, value=36, step=6, key="c3_plazo")
+            g_mensual_pct = st.slider("Crecimiento de cuota mensual por gradiente (%)", min_value=0.1, max_value=2.0, value=0.5, step=0.1, key="c3_g")
 
         tasa_fondo_mes = periodica_desde_efectiva_anual(rentabilidad_fondo_ea, 12)
         n_meses = int(plazo_ahorro_meses)

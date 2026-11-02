@@ -1,5 +1,7 @@
 """Conversiones de tasas, equivalencias, tasas combinadas y retención: fórmulas puras."""
 
+import numbers
+
 import pandas as pd
 
 
@@ -95,13 +97,16 @@ def rentabilidad_con_retencion(
     inversion_inicial: float,
     valor_final: float,
     retencion_pct: float,
-    dias_plazo: float = 360.0
+    dias_plazo: float = 360.0,
+    base_dias: float = 360.0,
 ) -> dict[str, float]:
     """Calcula la rentabilidad bruta y neta con deducción de retención en la fuente."""
     if inversion_inicial <= 0:
         raise ValueError("La inversión inicial debe ser mayor que cero.")
     if valor_final < inversion_inicial:
         raise ValueError("El valor final debe ser mayor o igual a la inversión inicial.")
+    if dias_plazo <= 0 or base_dias <= 0:
+        raise ValueError("El plazo y la base de días deben ser mayores que cero.")
     if retencion_pct < 0 or retencion_pct > 100:
         raise ValueError("El porcentaje de retención debe estar entre 0% y 100%.")
 
@@ -112,7 +117,7 @@ def rentabilidad_con_retencion(
     rentabilidad_periodo_bruta = (rendimiento_bruto / inversion_inicial) * 100.0
     rentabilidad_periodo_neta = (rendimiento_neto / inversion_inicial) * 100.0
 
-    factor_anual = 360.0 / dias_plazo
+    factor_anual = base_dias / dias_plazo
     ea_bruta = (((1.0 + (rentabilidad_periodo_bruta / 100.0)) ** factor_anual) - 1.0) * 100.0
     ea_neta = (((1.0 + (rentabilidad_periodo_neta / 100.0)) ** factor_anual) - 1.0) * 100.0
 
@@ -146,26 +151,38 @@ PERIODICIDADES = [
 ]
 
 
+TIPOS_TASA = [
+    "Efectiva Anual (EA)",
+    "Efectiva Periódica Vencida",
+    "Efectiva Periódica Anticipada",
+    "Nominal Anual Vencida",
+    "Nominal Anual Anticipada",
+]
+
+
+def a_efectiva_anual(tasa_pct: float, tipo: str, periodos_por_anio: int = 12) -> float:
+    """Convierte cualquier tipo de tasa a efectiva anual (EA), en porcentaje."""
+    if tipo == "Efectiva Anual (EA)":
+        return tasa_pct
+    if tipo == "Efectiva Periódica Vencida":
+        return efectiva_anual_desde_periodica(tasa_pct, periodos_por_anio)
+    if tipo == "Efectiva Periódica Anticipada":
+        return efectiva_anual_desde_periodica(anticipada_a_vencida(tasa_pct), periodos_por_anio)
+    if tipo == "Nominal Anual Vencida":
+        return efectiva_anual_desde_nominal(tasa_pct, periodos_por_anio, anticipada=False)
+    if tipo == "Nominal Anual Anticipada":
+        return efectiva_anual_desde_nominal(tasa_pct, periodos_por_anio, anticipada=True)
+    raise ValueError(f"Tipo de tasa desconocido: {tipo}")
+
+
 def generar_tabla_equivalencias(tasa_origen_pct: float, tipo_origen: str, periodos_origen: int = 12) -> pd.DataFrame:
     """Genera la matriz completa de equivalencias a partir de cualquier tasa de entrada."""
-    if tipo_origen == "Efectiva Anual (EA)":
-        ea = tasa_origen_pct
-    elif tipo_origen == "Efectiva Periódica Vencida":
-        ea = efectiva_anual_desde_periodica(tasa_origen_pct, periodos_origen)
-    elif tipo_origen == "Efectiva Periódica Anticipada":
-        iv = anticipada_a_vencida(tasa_origen_pct)
-        ea = efectiva_anual_desde_periodica(iv, periodos_origen)
-    elif tipo_origen == "Nominal Anual Vencida":
-        ea = efectiva_anual_desde_nominal(tasa_origen_pct, periodos_origen, anticipada=False)
-    elif tipo_origen == "Nominal Anual Anticipada":
-        ea = efectiva_anual_desde_nominal(tasa_origen_pct, periodos_origen, anticipada=True)
-    else:
-        ea = tasa_origen_pct
+    ea = a_efectiva_anual(tasa_origen_pct, tipo_origen, periodos_origen)
 
     filas = []
     for nombre, m in PERIODICIDADES:
         i_v = periodica_desde_efectiva_anual(ea, m)
-        i_a = vencida_a_anticipada(i_v) if i_v < 100 else 0.0
+        i_a = vencida_a_anticipada(i_v)
         j_v = i_v * m
         j_a = i_a * m
 
@@ -183,5 +200,5 @@ def generar_tabla_equivalencias(tasa_origen_pct: float, tipo_origen: str, period
 
 
 def _validar_periodos(periodos_por_anio: int) -> None:
-    if isinstance(periodos_por_anio, bool) or not isinstance(periodos_por_anio, int) or periodos_por_anio < 1:
+    if isinstance(periodos_por_anio, bool) or not isinstance(periodos_por_anio, numbers.Integral) or periodos_por_anio < 1:
         raise ValueError("La cantidad de períodos por año debe ser un entero positivo.")

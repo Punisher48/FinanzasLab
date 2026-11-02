@@ -4,8 +4,14 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from motor.formato import formato_cop
-from motor.amortizacion import *  # noqa: F401,F403
+from motor.formato import formato_cop, variacion_pct
+from motor.amortizacion import (
+    MAX_CUOTAS,
+    PERIODICIDADES_AMORT,
+    amortizacion_aleman,
+    amortizacion_frances,
+    calcular_tasa_periodica,
+)
 
 
 # ------------------ RENDER STREAMLIT ------------------
@@ -28,14 +34,12 @@ def render():
 
         with col_ctrl:
             st.markdown("#### 🎛️ Parámetros del Crédito")
-            with st.form("form_amortizacion_single"):
-                prestamo = st.number_input("Monto del Préstamo (COP)", min_value=100_000.0, value=20_000_000.0, step=1_000_000.0, format="%.2f")
-                sistema = st.selectbox("Sistema de Amortización", ["Francés (Cuota Fija)", "Alemán (Abono Constante a Capital)"])
-                tasa_val = st.number_input("Valor de la Tasa (%)", min_value=0.0, value=18.0, step=0.5, format="%.4f")
-                tipo_tasa = st.selectbox("Tipo de Tasa", ["Efectiva Anual (EA)", "Nominal Anual Vencida", "Efectiva Periódica"])
-                periodicidad = st.selectbox("Periodicidad de Pago", list(PERIODICIDADES_AMORT.keys()))
-                n_cuotas = st.number_input("Número de Cuotas (Plazo)", min_value=1, max_value=MAX_CUOTAS, value=24, step=1)
-                btn_simular = st.form_submit_button("Generar Tabla de Amortización", type="primary")
+            prestamo = st.number_input("Monto del Préstamo (COP)", min_value=100_000.0, value=20_000_000.0, step=1_000_000.0, format="%.2f")
+            sistema = st.selectbox("Sistema de Amortización", ["Francés (Cuota Fija)", "Alemán (Abono Constante a Capital)"])
+            tasa_val = st.number_input("Valor de la Tasa (%)", min_value=0.0, value=18.0, step=0.5, format="%.4f")
+            tipo_tasa = st.selectbox("Tipo de Tasa", ["Efectiva Anual (EA)", "Nominal Anual Vencida", "Efectiva Periódica"])
+            periodicidad = st.selectbox("Periodicidad de Pago", list(PERIODICIDADES_AMORT.keys()))
+            n_cuotas = st.number_input("Número de Cuotas (Plazo)", min_value=1, max_value=MAX_CUOTAS, value=24, step=1)
 
         tasa_per = calcular_tasa_periodica(tasa_val, tipo_tasa, periodicidad)
         is_frances = "Francés" in sistema
@@ -143,11 +147,9 @@ def render():
 
         with col_comp_ctrl:
             st.markdown("#### 🎛️ Parámetros Comunes")
-            with st.form("form_comparativa_sistemas"):
-                comp_prestamo = st.number_input("Monto del Crédito (COP)", min_value=100_000.0, value=30_000_000.0, step=1_000_000.0, format="%.2f", key="comp_prestamo")
-                comp_tasa_ea = st.number_input("Tasa Efectiva Anual EA (%)", min_value=0.0, value=20.0, step=0.5, format="%.4f", key="comp_tasa_ea")
-                comp_plazo = st.number_input("Plazo en Meses", min_value=1, max_value=MAX_CUOTAS, value=36, step=1, key="comp_plazo")
-                btn_compare = st.form_submit_button("Comparar Ambos Sistemas", type="primary")
+            comp_prestamo = st.number_input("Monto del Crédito (COP)", min_value=100_000.0, value=30_000_000.0, step=1_000_000.0, format="%.2f", key="comp_prestamo")
+            comp_tasa_ea = st.number_input("Tasa Efectiva Anual EA (%)", min_value=0.0, value=20.0, step=0.5, format="%.4f", key="comp_tasa_ea")
+            comp_plazo = st.number_input("Plazo en Meses", min_value=1, max_value=MAX_CUOTAS, value=36, step=1, key="comp_plazo")
 
         tasa_mes = calcular_tasa_periodica(comp_tasa_ea, "Efectiva Anual (EA)", "Mensual")
         df_f = amortizacion_frances(comp_prestamo, tasa_mes, int(comp_plazo))
@@ -164,7 +166,7 @@ def render():
             m1, m2, m3 = st.columns(3)
             m1.metric("Intereses Francés", formato_cop(int_f))
             m2.metric("Intereses Alemán", formato_cop(int_a))
-            m3.metric("Ahorro con Sist. Alemán", formato_cop(ahorro_intereses), delta=f"-{(ahorro_intereses / int_f) * 100:.2f}% de intereses")
+            m3.metric("Ahorro con Sist. Alemán", formato_cop(ahorro_intereses), delta=f"-{variacion_pct(ahorro_intereses, int_f):.2f}% de intereses")
 
             c_ini_f, c_fin_f = df_f["Cuota (COP)"].iloc[0], df_f["Cuota (COP)"].iloc[-1]
             c_ini_a, c_fin_a = df_a["Cuota (COP)"].iloc[0], df_a["Cuota (COP)"].iloc[-1]
