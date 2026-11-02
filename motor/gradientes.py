@@ -1,5 +1,4 @@
 """Gradientes aritméticos y geométricos: fórmulas puras."""
-n
 
 def calcular_gradiente_aritmetico(
     primer_pago: float,
