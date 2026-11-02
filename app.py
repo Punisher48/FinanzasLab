@@ -7,11 +7,15 @@ import streamlit as st
 from modules import (
     amortizacion,
     casos_aplicados,
+    decision_ahorro,
+    decision_credito,
+    decision_inversion,
     gradientes,
     interes,
     series_uniformes,
     supuestos_verificacion,
     tasas,
+    ui,
 )
 
 st.set_page_config(
@@ -208,8 +212,13 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+ui.iniciar_estado()
+
 MODULOS = {
     "🏠 Inicio (Panel Síntesis)": None,
+    "💸 ¿Dónde pongo mi plata?": decision_inversion,
+    "🏦 ¿Me conviene este crédito?": decision_credito,
+    "🎯 ¿Cuánto debo ahorrar para mi meta?": decision_ahorro,
     "💰 Interés Simple y Compuesto": interes,
     "📈 Tasas y Rentabilidad": tasas,
     "🔁 Series Uniformes": series_uniformes,

@@ -14,6 +14,9 @@ SECCIONES = {
     "series": "🔁 Series Uniformes",
     "gradientes": "📉 Gradientes (Aritmético/Geom.)",
     "amortizacion": "🧾 Tablas de Amortización",
+    "a": "💸 ¿Dónde pongo mi plata?",
+    "b": "🏦 ¿Me conviene este crédito?",
+    "c": "🎯 ¿Cuánto debo ahorrar para mi meta?",
 }
 
 
@@ -68,6 +71,55 @@ class PantallasTest(unittest.TestCase):
         app = abrir(SECCIONES["series"])
         app.radio(key="serie_modalidad").set_value("Anticipada").run()
         self.assertTrue(any(r"\cdot (1 + 0.015)" in l.value for l in app.latex))
+
+
+class PreguntasTest(unittest.TestCase):
+    def test_recomendacion_a_cambia_con_los_datos(self):
+        app = abrir(SECCIONES["a"])
+        self.assertIn("conviene **CDT**", app.success[0].value)
+        entrada(app, key="a_ahorro_tasa").set_value(30.0).run()
+        self.assertIn("conviene **Cuenta de ahorros**", app.success[0].value)
+
+    def test_veredicto_b_cambia_con_los_datos(self):
+        app = abrir(SECCIONES["b"])
+        self.assertIn("**B** es más barata", app.success[0].value)
+        entrada(app, key="b_a_tasa").set_value(10.0).run()
+        self.assertIn("**A** es más barata", app.success[0].value)
+        self.assertEqual(len(app.exception), 0)
+
+    def test_b_plazo_incompatible_muestra_mensaje(self):
+        app = abrir(SECCIONES["b"])
+        app.selectbox(key="b_a_periodicidad_pago").set_value("Trimestral").run()
+        entrada(app, key="b_a_meses").set_value(10).run()
+        self.assertEqual(len(app.exception), 0)
+        self.assertTrue(any("Revisa los datos" in e.value for e in app.error))
+
+    def test_c_cambia_de_plan_sin_error(self):
+        app = abrir(SECCIONES["c"])
+        for plan in app.selectbox(key="c_plan").options:
+            app.selectbox(key="c_plan").set_value(plan).run()
+            self.assertEqual(len(app.exception), 0, plan)
+            self.assertTrue(any("llega a la meta" in s.value for s in app.success))
+
+    def test_tasa_cero_no_tumba_las_preguntas(self):
+        for seccion, claves in (("a", ["a_cdt_tasa", "a_ahorro_tasa"]), ("b", ["b_a_tasa", "b_b_tasa"]), ("c", ["c_tasa"])):
+            app = abrir(SECCIONES[seccion])
+            for clave in claves:
+                entrada(app, key=clave).set_value(0.0).run()
+            self.assertEqual(len(app.exception), 0, seccion)
+
+    def test_los_valores_editados_se_conservan_al_navegar(self):
+        app = abrir(SECCIONES["a"])
+        entrada(app, key="a_monto").set_value(7_000_000.0).run()
+        app.sidebar.radio[0].set_value(SECCIONES["series"]).run()
+        app.sidebar.radio[0].set_value(SECCIONES["a"]).run()
+        self.assertEqual(entrada(app, key="a_monto").value, 7_000_000.0)
+
+    def test_cada_pregunta_marca_datos_de_ejemplo_y_pide_fuente(self):
+        for seccion in ("a", "b", "c"):
+            app = abrir(SECCIONES[seccion])
+            self.assertTrue(any("Datos de ejemplo" in w.value for w in app.warning), seccion)
+            self.assertEqual(app.text_input(key=f"{seccion}_fuente").value, "")
 
 
 if __name__ == "__main__":
