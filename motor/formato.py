@@ -7,6 +7,7 @@ def formato_cop(valor: float) -> str:
     """Formatea un valor en pesos colombianos para presentación."""
     if not math.isfinite(valor):
         return "N/A"
+    valor = round(valor, 2) + 0.0  # evita mostrar "-0,00" por residuos de redondeo
     return f"${valor:,.2f} COP".replace(",", "X").replace(".", ",").replace("X", ".")
 
 

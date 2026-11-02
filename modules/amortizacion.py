@@ -4,12 +4,20 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
+from modules.ui import mostrar_verificacion
 from motor.formato import formato_cop, variacion_pct
+from motor.tasas import TIPOS_TASA
 from motor.amortizacion import (
     MAX_CUOTAS,
     PERIODICIDADES_AMORT,
     amortizacion_aleman,
+    CUOTA_FIJA,
+    FORMAS_PAGO,
+    SISTEMAS,
     amortizacion_frances,
+    puntos_saldo,
+    tabla_amortizacion,
+    verificar_amortizacion,
     calcular_tasa_periodica,
 )
 
@@ -35,23 +43,19 @@ def render():
         with col_ctrl:
             st.markdown("#### 🎛️ Parámetros del Crédito")
             prestamo = st.number_input("Monto del Préstamo (COP)", min_value=100_000.0, value=20_000_000.0, step=1_000_000.0, format="%.2f")
-            sistema = st.selectbox("Sistema de Amortización", ["Francés (Cuota Fija)", "Alemán (Abono Constante a Capital)"])
+            sistema = st.selectbox("Sistema de Amortización", SISTEMAS)
             tasa_val = st.number_input("Valor de la Tasa (%)", min_value=0.0, value=18.0, step=0.5, format="%.4f")
-            tipo_tasa = st.selectbox("Tipo de Tasa", ["Efectiva Anual (EA)", "Nominal Anual Vencida", "Efectiva Periódica"])
+            tipo_tasa = st.selectbox("Tipo de Tasa", TIPOS_TASA)
             periodicidad = st.selectbox("Periodicidad de Pago", list(PERIODICIDADES_AMORT.keys()))
+            forma_pago = st.selectbox("Forma de Pago", FORMAS_PAGO, help="Vencida: al final de cada periodo. Anticipada: al inicio, con el primer pago en el periodo 0.")
             n_cuotas = st.number_input("Número de Cuotas (Plazo)", min_value=1, max_value=MAX_CUOTAS, value=24, step=1)
 
         tasa_per = calcular_tasa_periodica(tasa_val, tipo_tasa, periodicidad)
-        is_frances = "Francés" in sistema
-        if is_frances:
-            df_tabla = amortizacion_frances(prestamo, tasa_per, int(n_cuotas))
-        else:
-            df_tabla = amortizacion_aleman(prestamo, tasa_per, int(n_cuotas))
+        is_frances = sistema == CUOTA_FIJA
+        df_tabla = tabla_amortizacion(prestamo, tasa_per, int(n_cuotas), sistema, forma_pago)
 
         total_cuotas = float(df_tabla["Cuota (COP)"].sum())
         total_intereses = float(df_tabla["Interés (COP)"].sum())
-        total_abonos = float(df_tabla["Abono a Capital (COP)"].sum())
-        saldo_cierre = float(df_tabla["Saldo Final (COP)"].iloc[-1])
 
         with col_view:
             st.markdown("#### 📊 Métricas Clave del Crédito")
@@ -61,22 +65,15 @@ def render():
             k3.metric("Total Intereses", formato_cop(total_intereses))
             k4.metric("Costo Total", formato_cop(total_cuotas))
 
-            col_v1, col_v2 = st.columns(2)
-            check_abonos = abs(total_abonos - prestamo) < 1.0
-            check_saldo = abs(saldo_cierre) < 0.01
-
-            with col_v1:
-                st.success(f"✅ Suma de abonos ({formato_cop(total_abonos)}) = Préstamo" if check_abonos else "❌ Discrepancia")
-            with col_v2:
-                st.success(f"✅ Saldo final: {formato_cop(saldo_cierre)} (Cierre en cero)" if check_saldo else "❌ No cerró en cero")
+            mostrar_verificacion(verificar_amortizacion(df_tabla, prestamo))
 
             # Gráficos
             g1, g2 = st.columns(2)
             with g1:
                 fig_saldo = go.Figure()
-                saldos_plot = [prestamo] + df_tabla["Saldo Final (COP)"].tolist()
+                periodos_plot, saldos_plot = puntos_saldo(df_tabla, prestamo)
                 fig_saldo.add_trace(go.Scatter(
-                    x=list(range(len(saldos_plot))),
+                    x=periodos_plot,
                     y=saldos_plot,
                     mode="lines+markers",
                     name="Saldo Pendiente",
@@ -111,29 +108,17 @@ def render():
                 st.plotly_chart(fig_comp, use_container_width=True)
 
             st.markdown("##### Fórmulas Matemáticas y Sustitución")
-            if is_frances:
-                cuota_0 = df_tabla["Cuota (COP)"].iloc[0]
-                st.latex(
-                    rf"""
-                    \begin{{aligned}}
-                    A &= P \cdot \left[\frac{{i}}{{1 - (1+i)^{{-n}}}}\right] \\
-                    A &= {prestamo:,.2f} \cdot \left[\frac{{{tasa_per:.6g}}}{{1 - (1 + {tasa_per:.6g})^{{-{int(n_cuotas)}}}}}\right] = {cuota_0:,.2f}\text{{ COP (Cuota Fija)}}
-                    \end{{aligned}}
-                    """
-                )
+            cuota_0 = df_tabla["Cuota (COP)"].iloc[0]
+            cuota_n = df_tabla["Cuota (COP)"].iloc[-1]
+            n_int = int(n_cuotas)
+            if is_frances and forma_pago == "Vencida":
+                st.latex(rf"A = P \cdot \frac{{i}}{{1 - (1+i)^{{-n}}}} = {prestamo:,.2f} \cdot \frac{{{tasa_per:.6g}}}{{1 - (1 + {tasa_per:.6g})^{{-{n_int}}}}} = {cuota_0:,.2f}\text{{ COP}}")
+            elif is_frances:
+                st.latex(rf"A = \frac{{P}}{{\left[\frac{{1 - (1+i)^{{-n}}}}{{i}}\right](1+i)}} = {cuota_0:,.2f}\text{{ COP (primera cuota en el periodo 0)}}")
             else:
-                abono_c = prestamo / int(n_cuotas)
-                c_ini = df_tabla['Cuota (COP)'].iloc[0]
-                c_fin = df_tabla['Cuota (COP)'].iloc[-1]
-                st.latex(
-                    rf"""
-                    \begin{{aligned}}
-                    K &= \frac{{P}}{{n}} = \frac{{{prestamo:,.2f}}}{{{int(n_cuotas)}}} = {abono_c:,.2f}\text{{ COP (Abono Constante)}} \\
-                    A_1 &= K + (P \cdot i) = {abono_c:,.2f} + ({prestamo:,.2f} \cdot {tasa_per:.6g}) = {c_ini:,.2f}\text{{ COP}} \\
-                    A_n &= K + (K \cdot i) = {abono_c:,.2f} + ({abono_c:,.2f} \cdot {tasa_per:.6g}) = {c_fin:,.2f}\text{{ COP}}
-                    \end{{aligned}}
-                    """
-                )
+                abono_c = prestamo / n_int
+                st.latex(rf"K = \frac{{P}}{{n}} = \frac{{{prestamo:,.2f}}}{{{n_int}}} = {abono_c:,.2f}\text{{ COP}}, \qquad A_t = K + S_{{t-1}} \cdot i")
+                st.latex(rf"\text{{Primera cuota}} = {cuota_0:,.2f}\text{{ COP}}, \qquad \text{{Última cuota}} = {cuota_n:,.2f}\text{{ COP}}")
 
         st.markdown("##### 📋 Tabla Completa de Amortización")
         df_most = df_tabla.copy()
