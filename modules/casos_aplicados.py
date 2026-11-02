@@ -1,25 +1,18 @@
 """Casos Financieros Aplicados con datos del mercado financiero colombiano."""
 
-import math
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from modules.amortizacion import amortizacion_frances, amortizacion_aleman
-from modules.gradientes import calcular_gradiente_geometrico
-from modules.series_uniformes import valor_futuro_serie, cuota_para_valor_futuro
-from modules.tasas import (
+from motor.amortizacion import amortizacion_frances, amortizacion_aleman
+from motor.formato import formato_cop
+from motor.gradientes import calcular_gradiente_geometrico
+from motor.series import valor_futuro_serie, cuota_para_valor_futuro
+from motor.tasas import (
     periodica_desde_efectiva_anual,
     efectiva_anual_desde_periodica,
     rentabilidad_con_retencion,
 )
-
-
-def formato_cop(valor: float) -> str:
-    """Formatea un valor en pesos colombianos para presentación."""
-    if not math.isfinite(valor):
-        return "N/A"
-    return f"${valor:,.2f} COP".replace(",", "X").replace(".", ",").replace("X", ".")
 
 
 def render():
