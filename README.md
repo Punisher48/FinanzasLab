@@ -1,10 +1,10 @@
-# FinanzasLab 📊
+# FinanzasLab
 
 Dashboard interactivo de matemáticas e ingeniería financiera desarrollado con **Python** y **Streamlit**. FinanzasLab permite explorar fórmulas, simular escenarios y comparar decisiones financieras mediante cálculos reproducibles, tablas y visualizaciones interactivas en pesos colombianos (COP).
 
 > Proyecto académico de la **UPB — Escuela de Ingenierías**.
 
-## ✨ Funcionalidades
+## Funcionalidades
 
 El tablero reúne los siguientes módulos:
 
@@ -38,7 +38,7 @@ El tablero reúne los siguientes módulos:
   - Documentación de convenciones temporales, fórmulas y supuestos.
   - Matriz de comprobaciones manuales por módulo.
 
-## 🧱 Estructura del proyecto
+## Estructura del proyecto
 
 ```text
 .
@@ -68,7 +68,7 @@ La aplicación se inicia en `app.py`, que configura la interfaz y ofrece navegac
 - **Plotly** — gráficos interactivos
 - **unittest** — pruebas unitarias
 
-## 🚀 Instalación y ejecución local
+## Instalación y ejecución local
 
 ### 1. Clonar el repositorio
 
@@ -108,7 +108,7 @@ streamlit run app.py
 
 Después, abre en el navegador la URL local mostrada por Streamlit, normalmente `http://localhost:8501`.
 
-## 🧪 Ejecutar las pruebas
+## Ejecutar las pruebas
 
 El proyecto incluye pruebas unitarias para interés, tasas, series uniformes, gradientes, amortización y casos aplicados.
 
@@ -125,7 +125,7 @@ El archivo `render.yaml` define un servicio web Python con:
 
 Para desplegarlo, conecta el repositorio a Render y utiliza la configuración definida en `render.yaml`.
 
-## 📚 Notas metodológicas
+## Notas metodológicas
 
 - Los cálculos financieros se expresan principalmente en **pesos colombianos (COP)**.
 - La convención comercial utiliza 360 días por año; la convención exacta utiliza 365 días.
@@ -133,7 +133,7 @@ Para desplegarlo, conecta el repositorio a Render y utiliza la configuración de
 - En las tablas de amortización, el saldo final y la suma de abonos se verifican para cerrar el crédito correctamente.
 - Los casos de mercado incorporan tasas y referencias con fechas de consulta. Antes de tomar decisiones financieras reales, verifica las condiciones vigentes directamente con la entidad correspondiente.
 
-## 👥 Equipo
+## Equipo
 
 - Santiago Izef
 - Miguel Arboleda
