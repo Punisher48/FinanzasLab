@@ -1,7 +1,7 @@
 """Pruebas de los cálculos de interés simple y compuesto."""
 
 import unittest
-from modules.interes import (
+from motor.interes import (
     calcular_monto_interes_simple,
     calcular_vp_interes_simple,
     despejar_tasa_interes_simple,

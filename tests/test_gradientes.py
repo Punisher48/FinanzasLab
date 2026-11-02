@@ -1,7 +1,7 @@
 """Pruebas para gradientes aritméticos y geométricos."""
 
 import unittest
-from modules.gradientes import (
+from motor.gradientes import (
     calcular_gradiente_aritmetico,
     calcular_gradiente_geometrico,
 )

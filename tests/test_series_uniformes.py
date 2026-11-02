@@ -1,7 +1,7 @@
 """Pruebas para series uniformes vencidas y anticipadas."""
 
 import unittest
-from modules.series_uniformes import (
+from motor.series import (
     valor_futuro_serie,
     valor_presente_serie,
     cuota_para_valor_futuro,

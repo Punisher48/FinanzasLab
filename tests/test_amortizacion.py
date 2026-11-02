@@ -1,7 +1,7 @@
 """Pruebas de las tablas de amortización (Francés y Alemán)."""
 
 import unittest
-from modules.amortizacion import (
+from motor.amortizacion import (
     amortizacion_frances,
     amortizacion_aleman,
     calcular_tasa_periodica,
