@@ -60,7 +60,7 @@ El tablero reúne los siguientes módulos:
 
 La aplicación se inicia en `app.py`, que configura la interfaz y ofrece navegación lateral entre los módulos. Cada archivo de `modules/` combina funciones matemáticas reutilizables con una función `render()` para mostrar formularios, métricas, fórmulas, tablas y gráficos Plotly. Los casos aplicados reutilizan los cálculos de tasas, gradientes, series y amortización.
 
-## 🛠️ Tecnologías
+## Tecnologías
 
 - **Python**
 - **Streamlit** — interfaz web interactiva
@@ -116,7 +116,7 @@ El proyecto incluye pruebas unitarias para interés, tasas, series uniformes, gr
 python -m unittest discover -s tests -p "test_*.py" -v
 ```
 
-## ☁️ Despliegue en Render
+## Despliegue en Render
 
 El archivo `render.yaml` define un servicio web Python con:
 
