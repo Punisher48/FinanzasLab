@@ -1,95 +1,14 @@
 """Cálculos y análisis de gradientes aritméticos y geométricos."""
 
-import math
 import pandas as pd
 import plotly.graph_objects as go
-from plotly.subplots import make_subplots
 import streamlit as st
 
-
-def formato_cop(valor: float) -> str:
-    """Formatea un valor en pesos colombianos para presentación."""
-    if not math.isfinite(valor):
-        return "N/A"
-    return f"${valor:,.2f} COP".replace(",", "X").replace(".", ",").replace("X", ".")
-
-
-# ------------------ FUNCIONES MATEMÁTICAS ------------------
-
-def calcular_gradiente_aritmetico(
-    primer_pago: float,
-    incremento_g: float,
-    tasa_pct: float,
-    periodos: int,
-) -> dict[str, any]:
-    """Calcula VP, VF, Cuota Uniforme Equivalente y flujos para gradiente aritmético."""
-    if primer_pago < 0:
-        raise ValueError("El primer pago no puede ser negativo.")
-    if periodos < 1:
-        raise ValueError("El número de períodos debe ser al menos 1.")
-    tasa = tasa_pct / 100.0
-
-    pagos = [primer_pago + (t * incremento_g) for t in range(periodos)]
-    if any(p < 0 for p in pagos):
-        raise ValueError("El incremento negativo (gradiente decreciente) produce pagos negativos en el plazo.")
-
-    if tasa == 0:
-        vp = sum(pagos)
-        vf = vp
-        a_eq = vp / periodos
-    else:
-        factor_anualidad = (1.0 - (1.0 + tasa) ** (-periodos)) / tasa
-        factor_gradiente = (factor_anualidad - (periodos / ((1.0 + tasa) ** periodos))) / tasa
-        vp = (primer_pago * factor_anualidad) + (incremento_g * factor_gradiente)
-        vf = vp * ((1.0 + tasa) ** periodos)
-        a_eq = vp * (tasa / (1.0 - (1.0 + tasa) ** (-periodos)))
-
-    return {
-        "pagos": pagos,
-        "valor_presente": vp,
-        "valor_futuro": vf,
-        "cuota_equivalente": a_eq,
-    }
-
-
-def calcular_gradiente_geometrico(
-    primer_pago: float,
-    crecimiento_pct: float,
-    tasa_pct: float,
-    periodos: int,
-) -> dict[str, any]:
-    """Calcula VP, VF, Cuota Uniforme Equivalente y flujos para gradiente geométrico."""
-    if primer_pago < 0:
-        raise ValueError("El primer pago no puede ser negativo.")
-    if periodos < 1:
-        raise ValueError("El número de períodos debe ser al menos 1.")
-
-    g = crecimiento_pct / 100.0
-    tasa = tasa_pct / 100.0
-
-    if g < -1.0:
-        raise ValueError("La tasa de decrecimiento no puede ser menor a -100%.")
-
-    pagos = [primer_pago * ((1.0 + g) ** t) for t in range(periodos)]
-
-    if abs(tasa - g) < 1e-9:
-        vp = (periodos * primer_pago) / (1.0 + tasa)
-        vf = periodos * primer_pago * ((1.0 + tasa) ** (periodos - 1))
-    else:
-        vp = primer_pago * ((1.0 - ((1.0 + g) / (1.0 + tasa)) ** periodos) / (tasa - g))
-        vf = vp * ((1.0 + tasa) ** periodos)
-
-    if tasa == 0:
-        a_eq = vp / periodos
-    else:
-        a_eq = vp * (tasa / (1.0 - (1.0 + tasa) ** (-periodos)))
-
-    return {
-        "pagos": pagos,
-        "valor_presente": vp,
-        "valor_futuro": vf,
-        "cuota_equivalente": a_eq,
-    }
+from motor.formato import formato_cop
+from motor.gradientes import (
+    calcular_gradiente_aritmetico,
+    calcular_gradiente_geometrico,
+)
 
 
 # ------------------ RENDER STREAMLIT ------------------
@@ -115,16 +34,14 @@ def render():
                 key="grad_tipo",
             )
 
-            with st.form("form_gradientes"):
-                primer_pago = st.number_input("Primer pago / cuota A₁ (COP)", min_value=0.0, value=1_000_000.0, step=100_000.0, format="%.2f")
-                if "Aritmético" in tipo_gradiente:
-                    variacion = st.number_input("Gradiente constante G (COP/período)", value=50_000.0, step=10_000.0, format="%.2f", help="Positivo para creciente, negativo para decreciente")
-                else:
-                    variacion = st.number_input("Tasa de crecimiento g (%/período)", value=3.0, step=0.5, format="%.4f", help="Positiva para creciente, negativa para decreciente")
+            primer_pago = st.number_input("Primer pago / cuota A₁ (COP)", min_value=0.0, value=1_000_000.0, step=100_000.0, format="%.2f")
+            if "Aritmético" in tipo_gradiente:
+                variacion = st.number_input("Gradiente constante G (COP/período)", value=50_000.0, step=10_000.0, format="%.2f", help="Positivo para creciente, negativo para decreciente")
+            else:
+                variacion = st.number_input("Tasa de crecimiento g (%/período)", value=3.0, step=0.5, format="%.4f", help="Positiva para creciente, negativa para decreciente")
 
-                tasa_desc = st.number_input("Tasa de descuento / interés i (%)", min_value=0.0, value=1.5, step=0.25, format="%.4f")
-                n_periodos = st.number_input("Número de períodos (n)", min_value=1, max_value=360, value=12, step=1)
-                btn_grad = st.form_submit_button("Recalcular Gradiente", type="primary")
+            tasa_desc = st.number_input("Tasa de descuento / interés i (%)", min_value=0.0, value=1.5, step=0.25, format="%.4f")
+            n_periodos = st.number_input("Número de períodos (n)", min_value=1, max_value=360, value=12, step=1)
 
         with col_view:
             st.markdown("#### 📊 Resultados de la Serie Gradiente")
@@ -162,39 +79,14 @@ def render():
                     "Saldo Acumulado Futuro": saldo_acum,
                 })
 
-                fig = make_subplots(specs=[[{"secondary_y": True}]])
-                fig.add_trace(
-                    go.Bar(
-                        x=df_grad["Período"],
-                        y=df_grad["Pago Cuota Pt (COP)"],
-                        name="Pago del Período (Pt)",
-                        marker=dict(color="#93c5fd", line=dict(color="#2563eb", width=1)),
-                    ),
-                    secondary_y=False,
-                )
-                fig.add_trace(
-                    go.Scatter(
-                        x=df_grad["Período"],
-                        y=df_grad["Saldo Acumulado Futuro"],
-                        name="Valor Acumulado",
-                        mode="lines+markers",
-                        line=dict(color="#1e3a8a", width=3, shape="spline"),
-                        fill="tozeroy",
-                        fillcolor="rgba(30, 58, 138, 0.08)",
-                    ),
-                    secondary_y=True,
-                )
-                fig.update_layout(
-                    title=f"Flujo y Acumulación en Gradiente {('Aritmético' if is_aritmetico else 'Geométrico')}",
-                    xaxis_title="Período",
-                    template="plotly_white",
-                    margin=dict(l=20, r=20, t=50, b=20),
-                    legend=dict(orientation="h", y=1.1, x=0.2),
-                    height=290,
-                )
-                fig.update_yaxes(title_text="Pago Cuota (COP)", secondary_y=False)
-                fig.update_yaxes(title_text="Saldo Acumulado (COP)", secondary_y=True)
-                st.plotly_chart(fig, use_container_width=True)
+                nombre_grad = "aritmético" if is_aritmetico else "geométrico"
+                g_flujo, g_saldo = st.columns(2)
+                fig_flujo = go.Figure(go.Bar(x=df_grad["Período"], y=df_grad["Pago Cuota Pt (COP)"], name="Pago", marker_color="#2a78d6"))
+                fig_flujo.update_layout(title=f"Flujo de pagos del gradiente {nombre_grad}", xaxis_title="Período", yaxis_title="Pago (COP)", template="plotly_white", margin=dict(l=20, r=20, t=50, b=20), height=290)
+                g_flujo.plotly_chart(fig_flujo, width="stretch")
+                fig_saldo = go.Figure(go.Scatter(x=df_grad["Período"], y=df_grad["Saldo Acumulado Futuro"], mode="lines+markers", name="Acumulado", line=dict(color="#2a78d6", width=2)))
+                fig_saldo.update_layout(title="Valor acumulado de los pagos", xaxis_title="Período", yaxis_title="Valor acumulado (COP)", template="plotly_white", margin=dict(l=20, r=20, t=50, b=20), height=290)
+                g_saldo.plotly_chart(fig_saldo, width="stretch")
 
                 st.markdown("##### Fórmulas Matemáticas y Sustitución")
                 st.latex(formula_pago)
@@ -209,15 +101,15 @@ def render():
                     """
                 )
 
+                st.markdown("##### 📋 Detalle de Pagos Período a Período")
+                df_most = df_grad.copy()
+                for c in ["Pago Cuota Pt (COP)", "Valor Presente del Pago", "Saldo Acumulado Futuro"]:
+                    df_most[c] = df_most[c].map(formato_cop)
+                df_most["Factor Descuento"] = df_most["Factor Descuento"].map(lambda x: f"{x:.6f}")
+                st.dataframe(df_most, width="stretch", hide_index=True)
+
             except Exception as e:
                 st.error(f"Error en el cálculo: {e}")
-
-        st.markdown("##### 📋 Detalle de Pagos Período a Período")
-        df_most = df_grad.copy()
-        for c in ["Pago Cuota Pt (COP)", "Valor Presente del Pago", "Saldo Acumulado Futuro"]:
-            df_most[c] = df_most[c].map(formato_cop)
-        df_most["Factor Descuento"] = df_most["Factor Descuento"].map(lambda x: f"{x:.6f}")
-        st.dataframe(df_most, use_container_width=True, hide_index=True)
 
     with tab_verif:
         st.subheader("Supuestos Técnicos y Verificación de Gradientes")
@@ -241,7 +133,7 @@ def render():
                 P_1 &= 100{.}000, \quad P_2 = 120{.}000, \quad P_3 = 140{.}000\text{ COP} \\
                 VP &= \frac{100{.}000}{1{,}10} + \frac{120{.}000}{(1{,}10)^2} + \frac{140{.}000}{(1{,}10)^3} = 295{.}266{,}72\text{ COP} \quad \text{✅} \\
                 VF &= 295{.}266{,}72 \cdot (1{,}10)^3 = 393{.}000{,}00\text{ COP} \quad \text{✅} \\
-                A_{eq} &= 295{.}266{,}72 \cdot \frac{0{,}10}{1 - (1{,}10)^{-3}} = 118{.}731{,}18\text{ COP} \quad \text{✅ Verificado}
+                A_{eq} &= 295{.}266{,}72 \cdot \frac{0{,}10}{1 - (1{,}10)^{-3}} = 118{.}731{,}12\text{ COP} \quad \text{✅ Verificado}
                 \end{aligned}
                 """
             )

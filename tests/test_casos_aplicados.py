@@ -1,9 +1,9 @@
 """Pruebas de los casos financieros aplicados."""
 
 import unittest
-from modules.tasas import rentabilidad_con_retencion, periodica_desde_efectiva_anual
-from modules.amortizacion import amortizacion_frances, amortizacion_aleman
-from modules.gradientes import calcular_gradiente_geometrico
+from motor.tasas import rentabilidad_con_retencion
+from motor.amortizacion import amortizacion_frances, amortizacion_aleman
+from motor.gradientes import calcular_gradiente_geometrico
 
 
 class CasosAplicadosTest(unittest.TestCase):

@@ -1,11 +1,10 @@
 """Pruebas de conversión de tasas, equivalencias y tasas combinadas."""
 
 import unittest
-from modules.tasas import (
+from motor.tasas import (
     efectiva_anual_desde_periodica,
     periodica_desde_efectiva_anual,
     efectiva_anual_desde_nominal,
-    nominal_desde_efectiva_anual,
     vencida_a_anticipada,
     anticipada_a_vencida,
     tasa_combinada,

@@ -1,17 +1,19 @@
 """Aplicación principal de FinanzasLab - Tablero de Visualización de Ingeniería Financiera."""
 
-import pandas as pd
-import plotly.graph_objects as go
 import streamlit as st
 
 from modules import (
     amortizacion,
-    casos_aplicados,
+    decision_ahorro,
+    decision_credito,
+    decision_inversion,
     gradientes,
+    inicio,
     interes,
     series_uniformes,
     supuestos_verificacion,
     tasas,
+    ui,
 )
 
 st.set_page_config(
@@ -148,7 +150,13 @@ st.markdown(
         [data-testid="stMetricValue"] {
             color: #1e3a8a !important;
             font-weight: 700 !important;
-            font-size: 1.55rem !important;
+            font-size: 1.2rem !important;
+        }
+        [data-testid="stMetricValue"], [data-testid="stMetricValue"] *,
+        [data-testid="stMetricLabel"], [data-testid="stMetricLabel"] * {
+            white-space: normal !important;
+            overflow: visible !important;
+            text-overflow: clip !important;
         }
 
         /* Formularios y Botones */
@@ -208,21 +216,23 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+ui.iniciar_estado()
+
 MODULOS = {
-    "🏠 Inicio (Panel Síntesis)": None,
+    "🏠 Inicio (Panel Síntesis)": inicio,
+    "💸 ¿Dónde pongo mi plata?": decision_inversion,
+    "🏦 ¿Me conviene este crédito?": decision_credito,
+    "🎯 ¿Cuánto debo ahorrar para mi meta?": decision_ahorro,
     "💰 Interés Simple y Compuesto": interes,
     "📈 Tasas y Rentabilidad": tasas,
     "🔁 Series Uniformes": series_uniformes,
     "📉 Gradientes (Aritmético/Geom.)": gradientes,
     "🧾 Tablas de Amortización": amortizacion,
-    "🏦 Casos Financieros Aplicados": casos_aplicados,
-    "📋 Supuestos y Verificación": supuestos_verificacion,
+    "📋 Supuestos y Fórmulas": supuestos_verificacion,
 }
 
-# Integrantes fijos
-integrante_1 = "Santiago Izef"
-integrante_2 = "Miguel Arboleda"
-integrante_3 = "Andrés Rojas"
+INICIO = "🏠 Inicio (Panel Síntesis)"
+INTEGRANTES = ["Santiago Izef", "Miguel Arboleda", "Andrés Rojas"]
 
 with st.sidebar:
     st.markdown("## 📊 FinanzasLab")
@@ -234,132 +244,16 @@ with st.sidebar:
         "Navegación del Tablero",
         options=list(MODULOS.keys()),
         label_visibility="collapsed",
+        key="nav",
     )
     st.divider()
 
     st.markdown("### 👥 Integrantes del Equipo")
-    st.markdown(
-        f"""
-        - 🎓 **{integrante_1}**
-        - 🎓 **{integrante_2}**
-        - 🎓 **{integrante_3}**
-        """
-    )
+    st.markdown("\n".join(f"- 🎓 **{nombre}**" for nombre in INTEGRANTES))
     st.divider()
     st.caption("✨ UPB · Escuela de Ingenierías")
 
-# ---------------- CONTENIDO DEL PANEL PRINCIPAL (INICIO) ----------------
-if seccion == "🏠 Inicio (Panel Síntesis)":
-    # Banner Hero Académico
-    st.markdown(
-        f"""
-        <section class="hero">
-            <h1>FinanzasLab — Tablero de Ingeniería Financiera</h1>
-            <p>Laboratorio interactivo de síntesis: interés simple, interés compuesto, equivalencia de tasas, series uniformes, gradientes y tablas de amortización.</p>
-            <div class="team-container">
-                <span class="team-pill">🎓 {integrante_1}</span>
-                <span class="team-pill">🎓 {integrante_2}</span>
-                <span class="team-pill">🎓 {integrante_3}</span>
-                <span class="team-pill">🏛️ UPB — Escuela de Ingenierías</span>
-                <span class="team-pill">📅 Octubre 2026</span>
-            </div>
-        </section>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    # Indicadores Clave del Tablero (Consolidado Ejecutivo)
-    st.subheader("📌 Indicadores Clave Consolidados")
-    k1, k2, k3, k4 = st.columns(4)
-    with k1:
-        st.metric(label="Rendimiento Máximo Evaluado", value="12.00% EA", delta="Cajita Nu Bank (Caso 1)")
-    with k2:
-        st.metric(label="Cuota Crédito Vehículo (Francés)", value="$1.116.488 COP", delta="Davivienda 48m (Caso 2)")
-    with k3:
-        st.metric(label="Ahorro Intereses con Sist. Alemán", value="$1.666.667 COP", delta="-12.3% vs. Francés")
-    with k4:
-        st.metric(label="Meta Vivienda Ahorro Acumulado", value="$30.000.000 COP", delta="Fondo Crecer (Caso 3)")
-
-    st.markdown("<br>", unsafe_allow_html=True)
-
-    # Sección en 2 columnas: Resumen ejecutivo a la izquierda + Gráfico comparativo a la derecha
-    col_izq, col_der = st.columns([1.1, 0.9], gap="large")
-
-    with col_izq:
-        st.subheader("📑 Casos Financieros Reales (Mercado Colombiano)")
-        st.write("Síntesis comparativa de decisiones sobre productos verificados a Octubre 2026:")
-
-        resumen_casos_df = pd.DataFrame({
-            "Caso / Decisión": [
-                "1. CDT vs Cajita Nu",
-                "2. Crédito Vehículo",
-                "3. Ahorro Vivienda",
-            ],
-            "Tasa (TEA)": [
-                "Nu 12.00% (Neta 11.51%)",
-                "16.08% EA (1.25% mes)",
-                "8.50% EA (0.682% mes)",
-            ],
-            "Impacto Económico": [
-                "+$863.078 COP netos",
-                "Ahorro Alemán: $1.666.667",
-                "Rendimientos: $3.528.304",
-            ],
-            "Decisión Recomendada": [
-                "✅ Nu: Mayor TEA y liquidez diaria.",
-                "✅ Alemán: Cuotas decrecientes.",
-                "✅ Gradiente: Cuota inicial menor.",
-            ],
-        })
-        st.dataframe(resumen_casos_df, use_container_width=True, hide_index=True)
-
-    with col_der:
-        st.subheader("📊 Comparación Visual de Rendimientos y Costos")
-        fig_home = go.Figure()
-        categorias = ["Nu (Inversión)", "CDT Bancolombia", "Fondo Vivienda", "Crédito Vehículo (Costo)"]
-        tasas_ea = [12.00, 10.25, 8.50, 16.08]
-        colores = ["#2563eb", "#60a5fa", "#38bdf8", "#f59e0b"]
-
-        fig_home.add_trace(go.Bar(
-            x=categorias,
-            y=tasas_ea,
-            text=[f"{t:.2f}%" for t in tasas_ea],
-            textposition="auto",
-            marker=dict(color=colores, line=dict(color="#1e3a8a", width=1.5)),
-            name="Tasa Efectiva Anual (EA)",
-        ))
-        fig_home.update_layout(
-            title="Tasas Efectivas Anuales Evaluadas en el Tablero (%)",
-            yaxis_title="Tasa Efectiva Anual (% EA)",
-            template="plotly_white",
-            margin=dict(l=20, r=20, t=40, b=20),
-            height=280,
-        )
-        st.plotly_chart(fig_home, use_container_width=True)
-
-    st.markdown("<br>", unsafe_allow_html=True)
-
-    # Navegación hacia cada módulo
-    st.subheader("🧭 Exploración por Módulos Temáticos")
-    tarjetas = [
-        ("💰", "Interés Simple y Compuesto", "Cálculos, despejes de variables (C, M, i, t), convención de días y comparación gráfica simultánea de la brecha exponencial."),
-        ("📈", "Tasas y Rentabilidad", "Conversión de tasas vencidas/anticipadas, nominales/efectivas, tasas combinadas (Fisher), retención en la fuente y tabla de equivalencias."),
-        ("🔁", "Series Uniformes", "Anualidades vencidas y anticipadas. Cálculo de VP, VF y cuotas con gráficos combinados de flujo y saldo."),
-        ("📉", "Gradientes Financieros", "Series con gradientes aritméticos y geométricos. Cálculo de VP, VF, Cuota Uniforme Equivalente y flujos."),
-        ("🧾", "Tablas de Amortización", "Simulador completo para Sistemas Francés y Alemán. Verificación de suma de capital, saldo cero y comparador simultáneo."),
-        ("🏦", "Casos Financieros Aplicados", "Tres decisiones financieras con datos reales bancarios de Colombia, respondiendo las 4 preguntas de la rúbrica."),
-        ("📋", "Supuestos y Verificación", "Documentación formal de convenciones de días, tipos de tasas, compendio de fórmulas y matriz de comprobación."),
-    ]
-
-    for fila in range(0, len(tarjetas), 3):
-        columnas = st.columns(3, gap="medium")
-        for columna, (icono, titulo, descripcion) in zip(columnas, tarjetas[fila:fila + 3]):
-            with columna:
-                st.markdown(
-                    f'<div class="section-card"><h3>{icono} {titulo}</h3>'
-                    f'<p>{descripcion}</p></div>',
-                    unsafe_allow_html=True,
-                )
-
+if seccion == INICIO:
+    inicio.render(INTEGRANTES, [nombre for nombre in list(MODULOS)[4:]])
 else:
     MODULOS[seccion].render()

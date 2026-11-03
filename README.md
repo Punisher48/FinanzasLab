@@ -6,59 +6,43 @@ Dashboard interactivo de matemáticas e ingeniería financiera desarrollado con 
 
 ## Funcionalidades
 
-El tablero reúne los siguientes módulos:
+El panel principal resume los resultados en vivo y lleva a tres preguntas de la vida real:
 
-- **Interés simple y compuesto**
-  - Cálculo de valor presente, valor futuro, interés, tasa y plazo.
-  - Convenciones de días comercial (360) y exacta (365).
-  - Comparación gráfica entre crecimiento lineal y compuesto.
-- **Tasas y rentabilidad**
-  - Conversión entre tasas vencidas, anticipadas, nominales y efectivas.
-  - Conversión entre tasas periódicas y efectivas anuales (EA).
-  - Tasas combinadas y tasa real mediante la ecuación de Fisher.
-  - Cálculo de rentabilidad bruta y neta con retención en la fuente.
-  - Tabla de equivalencias para distintas periodicidades.
-- **Series uniformes**
-  - Anualidades vencidas y anticipadas.
-  - Cálculo de valor presente, valor futuro y cuota periódica.
-  - Simulación de ahorro, préstamos e inversiones.
-- **Gradientes financieros**
-  - Gradientes aritméticos y geométricos, crecientes o decrecientes.
-  - Valor presente, valor futuro y cuota uniforme equivalente.
-  - Detalle de flujos y acumulación período a período.
-- **Tablas de amortización**
-  - Sistema francés, con cuota fija.
-  - Sistema alemán, con abono constante a capital.
-  - Comparación de cuotas, intereses totales, costo total y saldo pendiente.
-- **Casos financieros aplicados**
-  - CDT Bancolombia vs. cuenta de rendimientos Nu.
-  - Crédito de vehículo: sistema francés vs. alemán.
-  - Plan de ahorro para vivienda con cuota fija vs. gradiente creciente.
-- **Supuestos y verificación**
-  - Documentación de convenciones temporales, fórmulas y supuestos.
-  - Matriz de comprobaciones manuales por módulo.
+- **¿Dónde pongo mi plata?** Compara CDT, cuenta de ahorros y una alternativa a tasa combinada, con EA bruta y neta, ganancia real y recomendación.
+- **¿Me conviene este crédito?** Compara dos ofertas con tablas de amortización, veredicto, gráficos y efecto de abonos extra.
+- **¿Cuánto debo ahorrar para mi meta?** Calcula la cuota con plan uniforme o gradiente, con calendario de aportes.
+
+Los valores precargados son **datos de ejemplo**, no ofertas reales. Cada pregunta tiene campos para registrar la fuente y la fecha de consulta.
+
+Los módulos del curso siguen disponibles en la navegación: interés simple y compuesto, tasas y rentabilidad, series uniformes, gradientes, tablas de amortización, y la sección de supuestos y fórmulas con verificación en vivo.
+
+| Caso | Temas |
+| :--- | :--- |
+| A. Inversión | Interés simple, interés compuesto, equivalencia de tasas, tasa combinada y retención |
+| B. Crédito | Equivalencia de tasas (incluida la anticipada), series uniformes y amortización |
+| C. Ahorro | Series uniformes, gradientes aritmético y geométrico, e interés compuesto |
 
 ## Estructura del proyecto
 
 ```text
 .
-├── app.py                         # Punto de entrada de la aplicación Streamlit
-├── modules/                       # Módulos de cálculo y sus vistas interactivas
-│   ├── interes.py                 # Interés simple y compuesto
-│   ├── tasas.py                   # Conversión de tasas y rentabilidad
-│   ├── series_uniformes.py        # Anualidades vencidas y anticipadas
-│   ├── gradientes.py              # Gradientes aritméticos y geométricos
-│   ├── amortizacion.py            # Sistemas francés y alemán
-│   ├── casos_aplicados.py         # Escenarios financieros aplicados
-│   └── supuestos_verificacion.py  # Fórmulas, supuestos y verificaciones
-├── tests/                         # Pruebas unitarias de los cálculos
-├── .streamlit/config.toml         # Tema y configuración del servidor Streamlit
-├── requirements.txt               # Dependencias de Python
-├── render.yaml                    # Configuración de despliegue en Render
-└── .gitignore
+├── app.py                 # Punto de entrada y navegación
+├── motor/                 # Cálculo financiero, sin dependencia de la interfaz
+│   ├── interes.py         # Interés simple y compuesto
+│   ├── tasas.py           # Conversión de tasas y rentabilidad
+│   ├── series.py          # Anualidades vencidas y anticipadas
+│   ├── gradientes.py      # Gradientes aritméticos y geométricos
+│   ├── amortizacion.py    # Cuota fija, abono constante, pago anticipado y abonos extra
+│   ├── decisiones.py      # Las tres preguntas
+│   ├── datos_ejemplo.py   # Parámetros precargados
+│   ├── verificacion.py    # Matriz de verificación en vivo
+│   └── formato.py         # Formato de presentación
+├── modules/               # Pantallas de Streamlit
+├── tests/                 # Pruebas automáticas
+├── requirements.txt       # Dependencias de la aplicación
+├── requirements-dev.txt   # Dependencias de las pruebas
+└── render.yaml            # Despliegue en Render
 ```
-
-La aplicación se inicia en `app.py`, que configura la interfaz y ofrece navegación lateral entre los módulos. Cada archivo de `modules/` combina funciones matemáticas reutilizables con una función `render()` para mostrar formularios, métricas, fórmulas, tablas y gráficos Plotly. Los casos aplicados reutilizan los cálculos de tasas, gradientes, series y amortización.
 
 ## Tecnologías
 
@@ -66,7 +50,7 @@ La aplicación se inicia en `app.py`, que configura la interfaz y ofrece navegac
 - **Streamlit** — interfaz web interactiva
 - **Pandas** — tablas y transformación de datos
 - **Plotly** — gráficos interactivos
-- **unittest** — pruebas unitarias
+- **unittest** y **numpy-financial** — pruebas y referencia independiente
 
 ## Instalación y ejecución local
 
@@ -110,10 +94,11 @@ Después, abre en el navegador la URL local mostrada por Streamlit, normalmente 
 
 ## Ejecutar las pruebas
 
-El proyecto incluye pruebas unitarias para interés, tasas, series uniformes, gradientes, amortización y casos aplicados.
+Las pruebas comparan cada módulo contra numpy-financial o contra el flujo de caja período a período, y prueban la interfaz con el simulador de Streamlit.
 
 ```bash
-python -m unittest discover -s tests -p "test_*.py" -v
+pip install -r requirements-dev.txt
+python -m unittest discover -s tests -p "test_*.py"
 ```
 
 ## Despliegue en Render
@@ -127,11 +112,11 @@ Para desplegarlo, conecta el repositorio a Render y utiliza la configuración de
 
 ## Notas metodológicas
 
-- Los cálculos financieros se expresan principalmente en **pesos colombianos (COP)**.
-- La convención comercial utiliza 360 días por año; la convención exacta utiliza 365 días.
-- Las tasas efectivas consideran capitalización y reinversión según la periodicidad seleccionada.
-- En las tablas de amortización, el saldo final y la suma de abonos se verifican para cerrar el crédito correctamente.
-- Los casos de mercado incorporan tasas y referencias con fechas de consulta. Antes de tomar decisiones financieras reales, verifica las condiciones vigentes directamente con la entidad correspondiente.
+- Los cálculos se expresan en pesos colombianos (COP).
+- La convención comercial usa 360 días por año y la exacta 365. Es un parámetro editable.
+- El veredicto de crédito se decide por la menor EA y mide la diferencia en pesos de hoy.
+- El saldo final de las tablas se calcula sin forzarlo a cero, y la verificación se muestra en rojo si no cierra.
+- Las tarifas de retención son parámetros editables y deben confirmarse en la norma vigente.
 
 ## Equipo
 
