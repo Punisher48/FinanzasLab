@@ -11,6 +11,11 @@ GRIS = "#6b7280"
 PREFIJOS_CASOS = ("a_", "b_", "c_")
 
 
+def texto_dinero(texto: str) -> str:
+    """Escapa el signo $ para que Streamlit no interprete las cifras como fórmulas matemáticas."""
+    return texto.replace("$", r"\$")
+
+
 def iniciar_estado() -> None:
     """Carga los datos de ejemplo una vez y conserva lo editado al cambiar de sección.
 
@@ -53,9 +58,9 @@ def aplicar_estilo(fig, titulo: str, eje_x: str, eje_y: str, altura: int = 340):
         yaxis_title=eje_y,
         template="plotly_white",
         hovermode="x unified",
-        margin=dict(l=20, r=20, t=50, b=20),
+        margin=dict(l=20, r=20, t=80, b=20),
         height=altura,
-        legend=dict(orientation="h", yanchor="bottom", y=-0.35, x=0),
+        legend=dict(orientation="h", yanchor="bottom", y=1.0, x=0),
         separators=",.",
     )
     return fig
@@ -76,12 +81,12 @@ def mostrar_verificacion(verificacion: dict) -> None:
     with col_saldo:
         mensaje = f"Saldo final: {formato_cop(verificacion['saldo_final'])}"
         if verificacion["ok_saldo"]:
-            st.success(f"✅ {mensaje} (cierra en cero)")
+            st.success(texto_dinero(f"✅ {mensaje} (cierra en cero)"))
         else:
-            st.error(f"❌ {mensaje} (no cierra en cero)")
+            st.error(texto_dinero(f"❌ {mensaje} (no cierra en cero)"))
     with col_abonos:
         mensaje = f"Suma de abonos: {formato_cop(verificacion['suma_abonos'])}"
         if verificacion["ok_abonos"]:
-            st.success(f"✅ {mensaje} (igual al capital)")
+            st.success(texto_dinero(f"✅ {mensaje} (igual al capital)"))
         else:
-            st.error(f"❌ {mensaje} (diferente del capital)")
+            st.error(texto_dinero(f"❌ {mensaje} (diferente del capital)"))

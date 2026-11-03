@@ -12,6 +12,7 @@ from modules.ui import (
     mostrar_verificacion,
     parametros,
     tabla_cop,
+    texto_dinero,
 )
 from motor.amortizacion import (
     FORMAS_PAGO,
@@ -32,11 +33,12 @@ COLUMNAS_COP = ["Saldo Inicial (COP)", "Cuota (COP)", "Interés (COP)", "Abono a
 def _entradas_oferta(letra: str) -> None:
     prefijo = f"b_{letra}_"
     st.markdown(f"**Oferta {letra.upper()}**")
-    st.number_input("Capital (COP)", min_value=1.0, step=1_000_000.0, format="%.2f", key=f"{prefijo}capital")
-    c1, c2, c3 = st.columns(3)
-    c1.number_input("Tasa (%)", min_value=0.0, step=0.25, format="%.4f", key=f"{prefijo}tasa")
-    c2.selectbox("Tipo de tasa", TIPOS_TASA, key=f"{prefijo}tipo")
-    c3.selectbox("Periodicidad de la tasa", list(PERIODICIDADES_TASA), key=f"{prefijo}periodicidad_tasa")
+    c1, c2 = st.columns(2)
+    c1.number_input("Capital (COP)", min_value=1.0, step=1_000_000.0, format="%.2f", key=f"{prefijo}capital")
+    c2.number_input("Tasa (%)", min_value=0.0, step=0.25, format="%.4f", key=f"{prefijo}tasa")
+    c3, c4 = st.columns(2)
+    c3.selectbox("Tipo de tasa", TIPOS_TASA, key=f"{prefijo}tipo")
+    c4.selectbox("Periodicidad de la tasa", list(PERIODICIDADES_TASA), key=f"{prefijo}periodicidad_tasa")
     c4, c5, c6 = st.columns(3)
     c4.number_input("Plazo (meses)", min_value=1, max_value=MAX_CUOTAS, step=6, key=f"{prefijo}meses")
     c5.selectbox("Periodicidad de pago", list(PERIODICIDADES_AMORT), key=f"{prefijo}periodicidad_pago")
@@ -62,7 +64,7 @@ def _graficos(a: dict, b: dict, sistema: str) -> None:
     for oferta, color in zip((a, b), COLORES):
         x, y = puntos_saldo(oferta["sistemas"][sistema]["tabla"], oferta["capital"])
         fig.add_trace(go.Scatter(x=x, y=y, mode="lines+markers", marker=dict(size=5), name=f"Oferta {oferta['nombre']}", line=dict(color=color, width=2)))
-    st.plotly_chart(aplicar_estilo(fig, f"Saldo del crédito después de cada pago: {sistema}", "Periodo de pago", "Saldo (COP)"), use_container_width=True)
+    st.plotly_chart(aplicar_estilo(fig, f"Saldo del crédito después de cada pago: {sistema}", "Periodo de pago", "Saldo (COP)"), width="stretch")
 
     columnas = st.columns(2)
     for columna, oferta in zip(columnas, (a, b)):
@@ -71,7 +73,7 @@ def _graficos(a: dict, b: dict, sistema: str) -> None:
         fig.add_trace(go.Bar(x=tabla["Período"], y=tabla["Abono a Capital (COP)"], name="Capital", marker=dict(color=COLORES[0], line=dict(color="white", width=1))))
         fig.add_trace(go.Bar(x=tabla["Período"], y=tabla["Interés (COP)"], name="Intereses", marker=dict(color=COLORES[1], line=dict(color="white", width=1))))
         fig.update_layout(barmode="stack")
-        columna.plotly_chart(aplicar_estilo(fig, f"Composición de la cuota: oferta {oferta['nombre']}", "Periodo de pago", "Pago por periodo (COP)"), use_container_width=True)
+        columna.plotly_chart(aplicar_estilo(fig, f"Composición de la cuota: oferta {oferta['nombre']}", "Periodo de pago", "Pago por periodo (COP)"), width="stretch")
 
 
 def _comparacion_sistemas(a: dict, b: dict) -> None:
@@ -89,7 +91,7 @@ def _comparacion_sistemas(a: dict, b: dict) -> None:
                 "Intereses totales": formato_cop(r["intereses"]),
                 "Total pagado": formato_cop(r["total_pagado"]),
             })
-    st.dataframe(pd.DataFrame(filas), use_container_width=True, hide_index=True)
+    st.dataframe(pd.DataFrame(filas), width="stretch", hide_index=True)
     st.caption(
         "Dentro de una misma oferta, ambos sistemas tienen el mismo costo efectivo (misma EA). "
         "El abono constante paga menos intereses en pesos porque devuelve el capital más rápido, no porque sea una tasa menor."
@@ -103,7 +105,7 @@ def _tablas(a: dict, b: dict) -> None:
             r = oferta["sistemas"][sistema]
             with st.expander(f"Oferta {oferta['nombre']}: {sistema}"):
                 mostrar_verificacion(r["verificacion"])
-                st.dataframe(tabla_cop(r["tabla"], COLUMNAS_COP), use_container_width=True, hide_index=True)
+                st.dataframe(tabla_cop(r["tabla"], COLUMNAS_COP), width="stretch", hide_index=True)
 
 
 def _abono_extra(a: dict, b: dict, p: dict) -> None:
@@ -120,7 +122,7 @@ def _abono_extra(a: dict, b: dict, p: dict) -> None:
             st.markdown(f"**Oferta {oferta['nombre']}**")
             k1, k2 = st.columns(2)
             k1.metric("Intereses que ahorras", formato_cop(efecto["intereses_ahorrados"]))
-            k2.metric("Pagos que te ahorras", f"{efecto['cuotas_menos']}", delta=f"{efecto['cuotas_con_extra']} en vez de {efecto['cuotas_sin_extra']}", delta_color="off")
+            k2.metric("Pagos que te ahorras", f"{efecto['cuotas_menos']}", delta=f"{efecto['cuotas_con_extra']} en vez de {efecto['cuotas_sin_extra']}", delta_color="off", delta_arrow="off")
 
 
 def render() -> None:
@@ -147,9 +149,9 @@ def render() -> None:
         a, b, sistema = r["a"], r["b"], p["b_sistema"]
 
         st.subheader("✅ Veredicto")
-        st.success(r["veredicto"]["texto"])
+        st.success(texto_dinero(r["veredicto"]["texto"]))
         for aviso in r["veredicto"]["avisos"]:
-            st.warning(aviso)
+            st.warning(texto_dinero(aviso))
 
         col_a, col_b = st.columns(2, gap="large")
         with col_a:

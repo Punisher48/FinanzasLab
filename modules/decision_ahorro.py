@@ -3,7 +3,7 @@
 import plotly.graph_objects as go
 import streamlit as st
 
-from modules.ui import COLORES, GRIS, aplicar_estilo, aviso_datos_ejemplo, campos_fuente, parametros, tabla_cop
+from modules.ui import COLORES, GRIS, aplicar_estilo, aviso_datos_ejemplo, campos_fuente, parametros, tabla_cop, texto_dinero
 from motor.datos_ejemplo import CASO_C, PLAN_ARITMETICO, PLAN_GEOMETRICO, PLANES
 from motor.decisiones import PERIODICIDADES_TASA, evaluar_caso_c
 from motor.formato import formato_cop
@@ -28,8 +28,9 @@ def _entradas() -> None:
 
 def _resultados(r: dict, p: dict) -> None:
     st.markdown("#### ✅ Tu plan")
-    st.success(r["recomendacion"])
-    k1, k2, k3, k4 = st.columns(4)
+    st.success(texto_dinero(r["recomendacion"]))
+    k1, k2 = st.columns(2)
+    k3, k4 = st.columns(2)
     k1.metric("Cuota inicial", formato_cop(r["cuota_inicial"]))
     k2.metric("Cuota final", formato_cop(r["cuota_final"]))
     k3.metric("Total aportado", formato_cop(r["total_aportado"]))
@@ -37,19 +38,19 @@ def _resultados(r: dict, p: dict) -> None:
 
     mensaje = f"Saldo final: {formato_cop(r['saldo_final'])}, meta: {formato_cop(p['c_meta'])}"
     if r["ok_meta"]:
-        st.success(f"✅ {mensaje} (el calendario llega a la meta)")
+        st.success(texto_dinero(f"✅ {mensaje} (el calendario llega a la meta)"))
     else:
-        st.error(f"❌ {mensaje} (el calendario no llega a la meta)")
+        st.error(texto_dinero(f"❌ {mensaje} (el calendario no llega a la meta)"))
 
     calendario = r["calendario"]
     fig = go.Figure()
     fig.add_trace(go.Bar(x=calendario["Mes"], y=calendario["Aporte (COP)"], name="Aporte del mes", marker=dict(color=COLORES[0], line=dict(color="white", width=1))))
-    st.plotly_chart(aplicar_estilo(fig, "Flujo de aportes mensuales", "Mes", "Aporte (COP)", 280), use_container_width=True)
+    st.plotly_chart(aplicar_estilo(fig, "Flujo de aportes mensuales", "Mes", "Aporte (COP)", 280), width="stretch")
 
     fig = go.Figure()
     fig.add_trace(go.Scatter(x=calendario["Mes"], y=calendario["Saldo Acumulado (COP)"], mode="lines", name="Valor acumulado", line=dict(color=COLORES[0], width=3)))
     fig.add_trace(go.Scatter(x=[calendario["Mes"].iloc[0], calendario["Mes"].iloc[-1]], y=[p["c_meta"]] * 2, mode="lines", name="Meta", line=dict(color=GRIS, width=2, dash="dash")))
-    st.plotly_chart(aplicar_estilo(fig, "Valor acumulado hacia la meta", "Mes", "Valor acumulado (COP)", 320), use_container_width=True)
+    st.plotly_chart(aplicar_estilo(fig, "Valor acumulado hacia la meta", "Mes", "Valor acumulado (COP)", 320), width="stretch")
 
 
 def render() -> None:
@@ -72,7 +73,7 @@ def render() -> None:
     if r is not None:
         st.markdown("##### 📅 Calendario de aportes")
         columnas = ["Aporte (COP)", "Interés Ganado (COP)", "Saldo Acumulado (COP)"]
-        st.dataframe(tabla_cop(r["calendario"], columnas), use_container_width=True, hide_index=True)
+        st.dataframe(tabla_cop(r["calendario"], columnas), width="stretch", hide_index=True)
 
         with st.expander("📐 Fórmulas usadas"):
             st.latex(r"\text{Uniforme: } C_t = A_1 \qquad \text{Aritmético: } C_t = A_1 + G \cdot a_t \qquad \text{Geométrico: } C_t = A_1 (1 + g)^{a_t}")

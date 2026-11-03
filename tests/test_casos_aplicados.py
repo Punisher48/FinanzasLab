@@ -1,7 +1,7 @@
 """Pruebas de los casos financieros aplicados."""
 
 import unittest
-from motor.tasas import rentabilidad_con_retencion, periodica_desde_efectiva_anual
+from motor.tasas import rentabilidad_con_retencion
 from motor.amortizacion import amortizacion_frances, amortizacion_aleman
 from motor.gradientes import calcular_gradiente_geometrico
 

@@ -1,7 +1,6 @@
 """Cálculos y análisis de series uniformes (anualidades) vencidas y anticipadas."""
 
 import plotly.graph_objects as go
-from plotly.subplots import make_subplots
 import streamlit as st
 
 from motor.formato import formato_cop
@@ -88,41 +87,13 @@ def render():
                 m2.metric(etiqueta, formato_cop(resultado))
                 m3.metric("Total Aportado en Cuotas", formato_cop(cuota_val * n_periodos))
 
-                # Gráfico combinado
-                fig = make_subplots(specs=[[{"secondary_y": True}]])
-                fig.add_trace(
-                    go.Bar(
-                        x=df_flujo["Período"],
-                        y=df_flujo["Flujo Pago (COP)"].abs(),
-                        name="Cuota Periódica",
-                        marker=dict(color="#93c5fd", line=dict(color="#2563eb", width=1)),
-                        opacity=0.85,
-                    ),
-                    secondary_y=False,
-                )
-                fig.add_trace(
-                    go.Scatter(
-                        x=df_flujo["Período"],
-                        y=df_flujo["Saldo Acumulado (COP)"],
-                        mode="lines+markers",
-                        name="Saldo Acumulado",
-                        line=dict(color="#1e40af", width=3, shape="spline"),
-                        fill="tozeroy",
-                        fillcolor="rgba(30, 64, 175, 0.08)",
-                    ),
-                    secondary_y=True,
-                )
-                fig.update_layout(
-                    title=f"Flujo y Saldo Acumulado ({modalidad})",
-                    xaxis_title="Período",
-                    template="plotly_white",
-                    legend=dict(orientation="h", y=1.1, x=0.2),
-                    margin=dict(l=20, r=20, t=50, b=20),
-                    height=290,
-                )
-                fig.update_yaxes(title_text="Cuota (COP)", secondary_y=False)
-                fig.update_yaxes(title_text="Saldo (COP)", secondary_y=True)
-                st.plotly_chart(fig, use_container_width=True)
+                g_flujo, g_saldo = st.columns(2)
+                fig_flujo = go.Figure(go.Bar(x=df_flujo["Período"], y=df_flujo["Flujo Pago (COP)"].abs(), name="Cuota", marker_color="#2a78d6"))
+                fig_flujo.update_layout(title=f"Flujo de cuotas ({modalidad})", xaxis_title="Período", yaxis_title="Cuota (COP)", template="plotly_white", margin=dict(l=20, r=20, t=50, b=20), height=290)
+                g_flujo.plotly_chart(fig_flujo, width="stretch")
+                fig_saldo = go.Figure(go.Scatter(x=df_flujo["Período"], y=df_flujo["Saldo Acumulado (COP)"], mode="lines+markers", name="Saldo", line=dict(color="#2a78d6", width=2)))
+                fig_saldo.update_layout(title="Valor acumulado o saldo", xaxis_title="Período", yaxis_title="Saldo (COP)", template="plotly_white", margin=dict(l=20, r=20, t=50, b=20), height=290)
+                g_saldo.plotly_chart(fig_saldo, width="stretch")
 
                 st.markdown("##### Sustento Matemático y Fórmulas")
                 st.latex(formula)
@@ -142,7 +113,7 @@ def render():
                 df_mostrar = df_flujo.copy()
                 for col in ["Flujo Pago (COP)", "Interés Ganado (COP)", "Saldo Acumulado (COP)"]:
                     df_mostrar[col] = df_mostrar[col].map(formato_cop)
-                st.dataframe(df_mostrar, use_container_width=True, hide_index=True)
+                st.dataframe(df_mostrar, width="stretch", hide_index=True)
 
             except Exception as e:
                 st.error(f"Error en el cálculo: {e}")

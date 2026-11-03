@@ -139,7 +139,7 @@ def render():
             st.markdown("#### 📑 Matriz Completa de Tasas Equivalentes")
             try:
                 df_equivalencias = generar_tabla_equivalencias(tasa_ref, tipo_ref, int(m_ref))
-                st.dataframe(df_equivalencias, use_container_width=True, hide_index=True)
+                st.dataframe(df_equivalencias, width="stretch", hide_index=True)
                 st.caption("Todas las tasas en cada fila generan idéntico rendimiento compuesto al cabo de 360 días.")
             except Exception as e:
                 st.error(f"Error: {e}")
@@ -216,7 +216,7 @@ def render():
                 #### Supuestos Técnicos:
                 1. **Tasa Efectiva**: Considera la reinversión de intereses en cada período de liquidación.
                 2. **Tasa Nominal**: Es una tasa de referencia anual pactada que se divide directamente entre $m$ ($i_p = j / m$).
-                3. **Retención en la Fuente**: Aplica únicamente sobre los rendimientos generados ($V_f - V_0$), no sobre el capital base (Art. 395 E.T. de Colombia).
+                3. **Retención en la Fuente**: Aplica únicamente sobre los rendimientos generados ($V_f - V_0$), no sobre el capital base. La tarifa es un parámetro editable.
                 """
             )
 

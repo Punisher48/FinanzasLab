@@ -109,7 +109,7 @@ def render():
                     margin=dict(l=20, r=20, t=40, b=20),
                     height=290,
                 )
-                st.plotly_chart(fig_s, use_container_width=True)
+                st.plotly_chart(fig_s, width="stretch")
 
                 st.markdown("##### Sustento Matemático y Fórmulas")
                 st.latex(formula)
@@ -173,7 +173,7 @@ def render():
                         y=df_c["Saldo Acumulado"],
                         mode="lines+markers",
                         name="Interés Compuesto",
-                        line=dict(color="#1d4ed8", width=3, shape="spline"),
+                        line=dict(color="#1d4ed8", width=3),
                         fill="tozeroy",
                         fillcolor="rgba(29, 78, 216, 0.08)",
                     ))
@@ -185,7 +185,7 @@ def render():
                         margin=dict(l=20, r=20, t=40, b=20),
                         height=290,
                     )
-                    st.plotly_chart(fig_c, use_container_width=True)
+                    st.plotly_chart(fig_c, width="stretch")
 
                     st.markdown("##### Sustento Matemático y Fórmulas")
                     st.latex(
@@ -280,7 +280,7 @@ def render():
             fig_comp.add_trace(go.Scatter(
                 x=df_comp["Período"], y=df_comp["Interés Compuesto"],
                 mode="lines+markers", name="Interés Compuesto (Exponencial)",
-                line=dict(color="#2563eb", width=3, shape="spline"),
+                line=dict(color="#2563eb", width=3),
                 fill="tonexty",
                 fillcolor="rgba(37, 99, 235, 0.08)",
             ))
@@ -293,7 +293,7 @@ def render():
                 margin=dict(l=20, r=20, t=40, b=20),
                 height=300,
             )
-            st.plotly_chart(fig_comp, use_container_width=True)
+            st.plotly_chart(fig_comp, width="stretch")
 
         st.markdown("##### 📈 Desglose de la Brecha de Capitalización (Intereses sobre Intereses)")
         fig_brecha = go.Figure()
@@ -310,12 +310,12 @@ def render():
             margin=dict(l=20, r=20, t=40, b=20),
             height=250,
         )
-        st.plotly_chart(fig_brecha, use_container_width=True)
+        st.plotly_chart(fig_brecha, width="stretch")
 
         tabla_presentar = df_comp.copy()
         for col in ["Interés Simple", "Interés Compuesto", "Diferencia (Brecha)"]:
             tabla_presentar[col] = tabla_presentar[col].map(formato_cop)
-        st.dataframe(tabla_presentar, use_container_width=True, hide_index=True)
+        st.dataframe(tabla_presentar, width="stretch", hide_index=True)
 
     # ---------------- TAB 4: SUPUESTOS Y VERIFICACIÓN ----------------
     with tab_verificacion:
@@ -327,8 +327,8 @@ def render():
                 """
                 #### Supuestos Técnicos del Módulo:
                 1. **Convención de días**:
-                   - **Comercial (360 días)**: Asume meses uniformes de 30 días. Es el estándar bancario colombiano.
-                   - **Exacto (365 días)**: Utiliza los días calendario reales transcurridos.
+                   - **Comercial (360 días)**: Asume meses uniformes de 30 días y años de 360 días.
+                   - **Exacto (365 días)**: Usa años de 365 días.
                 2. **Homogeneidad temporal**: La tasa periódica y el plazo deben expresar la misma unidad temporal.
                 3. **Base de cálculo**:
                    - Simple: $I_t = C \\cdot i$ permanece constante.

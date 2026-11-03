@@ -77,7 +77,7 @@ def render():
                     y=saldos_plot,
                     mode="lines+markers",
                     name="Saldo Pendiente",
-                    line=dict(color="#1d4ed8", width=3, shape="spline"),
+                    line=dict(color="#1d4ed8", width=3),
                     fill="tozeroy",
                     fillcolor="rgba(29, 78, 216, 0.08)",
                 ))
@@ -89,7 +89,7 @@ def render():
                     margin=dict(l=20, r=20, t=40, b=20),
                     height=260,
                 )
-                st.plotly_chart(fig_saldo, use_container_width=True)
+                st.plotly_chart(fig_saldo, width="stretch")
 
             with g2:
                 fig_comp = go.Figure()
@@ -105,7 +105,7 @@ def render():
                     height=260,
                     legend=dict(orientation="h", y=1.1, x=0.1),
                 )
-                st.plotly_chart(fig_comp, use_container_width=True)
+                st.plotly_chart(fig_comp, width="stretch")
 
             st.markdown("##### Fórmulas Matemáticas y Sustitución")
             cuota_0 = df_tabla["Cuota (COP)"].iloc[0]
@@ -124,7 +124,7 @@ def render():
         df_most = df_tabla.copy()
         for c in ["Saldo Inicial (COP)", "Cuota (COP)", "Interés (COP)", "Abono a Capital (COP)", "Saldo Final (COP)"]:
             df_most[c] = df_most[c].map(formato_cop)
-        st.dataframe(df_most, use_container_width=True, hide_index=True)
+        st.dataframe(df_most, width="stretch", hide_index=True)
 
     with tab_comparativa:
         st.subheader("Comparación Simultánea: Sistema Francés vs. Sistema Alemán")
@@ -158,7 +158,7 @@ def render():
 
             fig_cuotas = go.Figure()
             fig_cuotas.add_trace(go.Scatter(x=df_f["Período"], y=df_f["Cuota (COP)"], mode="lines+markers", name="Cuota Francés (Constante)", line=dict(color="#f59e0b", width=3)))
-            fig_cuotas.add_trace(go.Scatter(x=df_a["Período"], y=df_a["Cuota (COP)"], mode="lines+markers", name="Cuota Alemán (Decreciente)", line=dict(color="#2563eb", width=3, shape="spline")))
+            fig_cuotas.add_trace(go.Scatter(x=df_a["Período"], y=df_a["Cuota (COP)"], mode="lines+markers", name="Cuota Alemán (Decreciente)", line=dict(color="#2563eb", width=3)))
             fig_cuotas.update_layout(
                 title="Comparación de Cuotas Mensuales: Francés vs. Alemán",
                 xaxis_title="Mes",
@@ -168,7 +168,7 @@ def render():
                 height=280,
                 legend=dict(orientation="h", y=1.1, x=0.2),
             )
-            st.plotly_chart(fig_cuotas, use_container_width=True)
+            st.plotly_chart(fig_cuotas, width="stretch")
 
         st.markdown("##### 📑 Cuadro Resumen Comparativo")
         df_resumen = pd.DataFrame({
@@ -178,7 +178,7 @@ def render():
             "Total Intereses": [formato_cop(int_f), formato_cop(int_a), f"-{formato_cop(ahorro_intereses)} a favor del Alemán"],
             "Desembolso Total Pagado": [formato_cop(total_f), formato_cop(total_a), f"-{formato_cop(ahorro_intereses)}"],
         })
-        st.dataframe(df_resumen, use_container_width=True, hide_index=True)
+        st.dataframe(df_resumen, width="stretch", hide_index=True)
 
     with tab_verif:
         st.subheader("Supuestos Técnicos y Verificación de Amortización")

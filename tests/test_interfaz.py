@@ -6,6 +6,10 @@ from pathlib import Path
 
 from streamlit.testing.v1 import AppTest
 
+from motor import datos_ejemplo as de
+from motor import decisiones as dc
+from motor.formato import formato_cop
+
 logging.disable(logging.WARNING)
 APP = str(Path(__file__).resolve().parent.parent / "app.py")
 SECCIONES = {
@@ -120,6 +124,56 @@ class PreguntasTest(unittest.TestCase):
             app = abrir(SECCIONES[seccion])
             self.assertTrue(any("Datos de ejemplo" in w.value for w in app.warning), seccion)
             self.assertEqual(app.text_input(key=f"{seccion}_fuente").value, "")
+
+
+class TextoConDineroTest(unittest.TestCase):
+    def test_el_signo_pesos_va_escapado_para_no_volverse_formula(self):
+        for seccion in (None, SECCIONES["a"], SECCIONES["b"], SECCIONES["c"]):
+            app = abrir(seccion)
+            for mensaje in list(app.success) + list(app.caption):
+                sin_escapar = mensaje.value.replace(r"\$", "")
+                self.assertNotIn("$", sin_escapar, mensaje.value)
+
+
+class PanelPrincipalTest(unittest.TestCase):
+    def test_los_indicadores_salen_del_motor(self):
+        app = abrir()
+        valor = next(m.value for m in app.metric if m.label.startswith("Cuota del crédito"))
+        cuota = dc.evaluar_caso_b(de.CASO_B)["b"]["sistemas"][de.CASO_B["b_sistema"]]["cuota_inicial"]
+        self.assertEqual(valor, formato_cop(cuota))
+
+    def test_editar_un_caso_cambia_el_panel(self):
+        app = abrir(SECCIONES["b"])
+        entrada(app, key="b_b_tasa").set_value(25.0).run()
+        app.sidebar.radio[0].set_value("🏠 Inicio (Panel Síntesis)").run()
+        self.assertTrue(any("**A** es más barata" in s.value for s in app.success))
+
+    def test_muestra_integrantes_y_decision(self):
+        html = " ".join(m.value for m in abrir().markdown)
+        for nombre in ("Santiago Izef", "Miguel Arboleda", "Andrés Rojas"):
+            self.assertIn(nombre, html)
+        self.assertGreaterEqual(len(abrir().success), 3)
+
+    def test_los_botones_navegan(self):
+        app = abrir()
+        app.button(key="ir_💸 ¿Dónde pongo mi plata?").click().run()
+        self.assertEqual(app.sidebar.radio[0].value, SECCIONES["a"])
+        self.assertEqual(app.title[0].value, "💸 ¿Dónde pongo mi plata?")
+
+    def test_datos_invalidos_en_un_caso_no_tumban_el_panel(self):
+        app = abrir(SECCIONES["c"])
+        app.selectbox(key="c_plan").set_value(de.PLAN_ARITMETICO).run()
+        entrada(app, key="c_crecimiento_cop").set_value(50_000_000.0).run()
+        app.sidebar.radio[0].set_value("🏠 Inicio (Panel Síntesis)").run()
+        self.assertEqual(len(app.exception), 0)
+        self.assertTrue(any("Revisa los datos" in e.value for e in app.error))
+
+    def test_la_fuente_llega_a_la_seccion_de_supuestos(self):
+        app = abrir(SECCIONES["a"])
+        app.text_input(key="a_fuente").set_value("Mi fuente").run()
+        app.sidebar.radio[0].set_value("📋 Supuestos y Fórmulas").run()
+        self.assertEqual(len(app.exception), 0)
+        self.assertIn("Mi fuente", app.dataframe[0].value["Fuente"].tolist())
 
 
 if __name__ == "__main__":

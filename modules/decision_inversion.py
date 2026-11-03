@@ -4,7 +4,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from modules.ui import COLORES, GRIS, aplicar_estilo, aviso_datos_ejemplo, campos_fuente, parametros
+from modules.ui import COLORES, GRIS, aplicar_estilo, aviso_datos_ejemplo, campos_fuente, parametros, texto_dinero
 from motor.datos_ejemplo import CASO_A, INTERES_REINVERTIDO, INTERES_RETIRADO
 from motor.decisiones import PERIODICIDADES_TASA, evaluar_caso_a
 from motor.formato import formato_cop
@@ -46,15 +46,15 @@ def _entradas() -> None:
 
 def _resultados(r: dict, p: dict) -> None:
     st.subheader("✅ Recomendación")
-    st.success(r["recomendacion"])
+    st.success(texto_dinero(r["recomendacion"]))
     st.caption("La recomendación compara solo el dinero final: no incluye liquidez, riesgo ni condiciones de cada producto.")
 
     mejor = r["mejor"]
     k1, k2, k3, k4 = st.columns(4)
-    k1.metric(f"EA neta: {mejor['nombre']}", f"{mejor['ea_neta']:.2f}%", delta=f"bruta {mejor['ea_bruta']:.2f}%", delta_color="off")
+    k1.metric(f"EA neta: {mejor['nombre']}", f"{mejor['ea_neta']:.2f}%", delta=f"bruta {mejor['ea_bruta']:.2f}%", delta_color="off", delta_arrow="off")
     k2.metric("Valor final neto", formato_cop(mejor["vf_neto"]))
     k3.metric("Intereses ganados netos", formato_cop(mejor["intereses_netos"]))
-    k4.metric("Ganancia real", formato_cop(mejor["ganancia_real"]), delta=f"{mejor['tasa_real']:.2f}% real", delta_color="off")
+    k4.metric("Ganancia real", formato_cop(mejor["ganancia_real"]), delta=f"{mejor['tasa_real']:.2f}% real", delta_color="off", delta_arrow="off")
 
     fig = go.Figure()
     for producto, color in zip(r["productos"], COLORES):
@@ -63,7 +63,7 @@ def _resultados(r: dict, p: dict) -> None:
         x=r["dias"], y=r["poder_adquisitivo"], mode="lines", name="Monto ajustado por inflación (referencia)",
         line=dict(color=GRIS, width=2, dash="dash"),
     ))
-    st.plotly_chart(aplicar_estilo(fig, "Evolución del dinero en cada opción, neto de retención", "Días desde la inversión", "Valor acumulado (COP)", 380), use_container_width=True)
+    st.plotly_chart(aplicar_estilo(fig, "Evolución del dinero en cada opción, neto de retención", "Días desde la inversión", "Valor acumulado (COP)", 380), width="stretch")
 
     st.markdown("##### 📑 Comparación completa")
     st.dataframe(pd.DataFrame([
@@ -79,7 +79,7 @@ def _resultados(r: dict, p: dict) -> None:
             "Tasa real": f"{x['tasa_real']:.2f}%",
         }
         for x in r["productos"]
-    ]), use_container_width=True, hide_index=True)
+    ]), width="stretch", hide_index=True)
     if p["a_cdt_intereses"] == INTERES_RETIRADO:
         st.caption("El CDT retira sus intereses sin reinvertirlos (interés simple), por eso su EA bruta obtenida es menor que la EA ofrecida.")
 
