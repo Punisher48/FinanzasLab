@@ -26,7 +26,19 @@ st.set_page_config(
 # Estilos CSS Personalizados: Estética Pastel Blue & Academic Slate con Profundidad
 st.markdown(
     """
+    <meta name="google" content="notranslate">
+    <meta name="googlebot" content="notranslate">
     <style>
+        /* Prevención de errores de React causados por Google Translate */
+        html, body, [data-testid="stApp"], [data-testid="stAppViewContainer"], .main {
+            -webkit-translate: no !important;
+            translate: no !important;
+        }
+        .notranslate {
+            -webkit-translate: no !important;
+            translate: no !important;
+        }
+
         /* Contenedor general */
         .block-container { 
             padding-top: 1.5rem; 
